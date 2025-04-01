@@ -58,13 +58,28 @@
         </div>
       </div>
       
-      <!-- Controls section -->
+      <!-- Enhanced Controls section -->
       <div class="controls">
         <div class="control-group">
           <span class="control-label">View:</span>
           <div class="button-group">
             <button id="treemapViewBtn" class="active">Treemap</button>
             <button id="yearViewBtn">Year</button>
+          </div>
+        </div>
+        
+        <!-- New scaling controls - will be shown only in treemap view -->
+        <div class="control-group scaling-controls" id="scalingControls">
+          <span class="control-label">Scaling:</span>
+          <div class="button-group">
+            <button id="linearScaling" title="Direct proportional sizing">Linear</button>
+            <button id="sqrtScaling" title="Area-proportional sizing">Sqrt</button>
+            <button id="logScaling" title="Logarithmic compression">Log</button>
+            <button id="powerScaling" title="Power compression (default)" class="active">Power</button>
+          </div>
+          <div class="scaling-info">
+            <span id="scalingMethodInfo" class="scaling-description">Power compression (default)</span>
+            <span class="tooltip-icon" title="Linear: Direct proportional sizing&#10;Sqrt: Area-proportional sizing&#10;Log: Logarithmic compression for large ranges&#10;Power: Non-linear compression (0.7 power)">?</span>
           </div>
         </div>
       </div>

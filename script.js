@@ -8,11 +8,28 @@ const state = {
   selectedMonthIndex: null,
   selectedCategory: null,
   selectedFeatures: [],
-  yearRange: { min: 2022, max: 2024 }
+  yearRange: { min: 2022, max: 2024 },
+  // Add new state for scaling method
+  treemapScalingMethod: 'power' // 'linear', 'sqrt', 'log', or 'power' (default)
 };
 
-// Category colors - defining distinct colors for each category
+// Category colors - refined color palette for better cohesion
 const categoryColors = {
+  'Meeting': '#F5A623',       // Warm orange
+  'Chat features': '#4A90E2',  // Bright blue
+  'Contact Center features': '#5E7F9A', // Steel blue
+  'General features': '#63A375', // Forest green
+  'Mail and Calendar features': '#7B68EE', // Medium slate blue
+  'Phone features': '#607D8B', // Blue grey
+  'Team Chat features': '#3F51B5', // Indigo
+  'Webinar features': '#8BC34A', // Light green
+  'Whiteboard features': '#00BCD4', // Cyan
+  'Zoom Apps features': '#009688', // Teal
+  'Zoom Clips': '#9C27B0',    // Purple
+  'Zoom Clips features': '#673AB7', // Deep purple
+  'Zoom Mail and Calendar': '#2196F3', // Blue
+  
+  // Original colors for specific categories
   'UI/UX': '#1E88E5',         // Blue
   'Security': '#D32F2F',       // Red
   'Performance': '#43A047',    // Green
@@ -26,7 +43,6 @@ const categoryColors = {
   'Desktop': '#607D8B',        // Blue Grey
   'Cloud Storage': '#00BCD4',  // Teal
   'Calendar': '#FFEB3B',       // Yellow
-  'Meeting': '#FF9800',        // Orange
   'Background': '#9E9E9E',     // Grey
   'Analytics': '#F44336',      // Red
   'Settings': '#4527A0',       // Deep Purple
@@ -124,6 +140,9 @@ async function init() {
     
     // Initial render
     updateUI();
+    
+    // Update scaling toggle UI
+    updateScalingToggleUI();
     
     // Hide loading overlay
     elements.loadingOverlay.classList.add('hidden');
@@ -327,6 +346,72 @@ function setupEventListeners() {
       updateUI();
     }
   });
+  
+  // Add new event listeners for scaling method toggle
+  document.getElementById('linearScaling').addEventListener('click', () => {
+    state.treemapScalingMethod = 'linear';
+    updateScalingToggleUI();
+    if (state.view === 'treemap') {
+      renderTreemapView();
+    }
+  });
+  
+  document.getElementById('sqrtScaling').addEventListener('click', () => {
+    state.treemapScalingMethod = 'sqrt';
+    updateScalingToggleUI();
+    if (state.view === 'treemap') {
+      renderTreemapView();
+    }
+  });
+  
+  document.getElementById('logScaling').addEventListener('click', () => {
+    state.treemapScalingMethod = 'log';
+    updateScalingToggleUI();
+    if (state.view === 'treemap') {
+      renderTreemapView();
+    }
+  });
+  
+  document.getElementById('powerScaling').addEventListener('click', () => {
+    state.treemapScalingMethod = 'power';
+    updateScalingToggleUI();
+    if (state.view === 'treemap') {
+      renderTreemapView();
+    }
+  });
+}
+
+// Helper function to update the scaling toggle UI
+function updateScalingToggleUI() {
+  document.getElementById('linearScaling').classList.toggle('active', state.treemapScalingMethod === 'linear');
+  document.getElementById('sqrtScaling').classList.toggle('active', state.treemapScalingMethod === 'sqrt');
+  document.getElementById('logScaling').classList.toggle('active', state.treemapScalingMethod === 'log');
+  document.getElementById('powerScaling').classList.toggle('active', state.treemapScalingMethod === 'power');
+  
+  // Update tooltip text
+  document.getElementById('scalingMethodInfo').textContent = getScalingMethodDescription();
+  
+  // Show/hide scaling controls based on view
+  const scalingControls = document.getElementById('scalingControls');
+  if (scalingControls) {
+    scalingControls.style.display = state.view === 'treemap' ? 'flex' : 'none';
+  }
+}
+
+// Get description for current scaling method
+function getScalingMethodDescription() {
+  switch (state.treemapScalingMethod) {
+    case 'linear':
+      return 'Direct proportional sizing';
+    case 'sqrt':
+      return 'Area-proportional sizing';
+    case 'log':
+      return 'Logarithmic compression';
+    case 'power':
+      return 'Power compression (default)';
+    default:
+      return '';
+  }
 }
 
 // Generate category legend
@@ -477,6 +562,9 @@ function updateUI() {
   
   // Update summary statistics
   renderSummaryStats();
+  
+  // Update scaling toggle visibility
+  updateScalingToggleUI();
 }
 
 // Update active state of buttons
@@ -493,7 +581,7 @@ function updateViewVisibility() {
   elements.monthlyView.classList.toggle('hidden', state.view !== 'month');
 }
 
-// Render treemap view
+// Render treemap view with scaling options
 function renderTreemapView() {
   // Count features by category
   const categoryCount = {};
@@ -519,18 +607,52 @@ function renderTreemapView() {
   // Total features
   const totalFeatures = state.data.length;
   
-  // Create treemap cells with improved sizing algorithm
+  // Create treemap cells with the selected scaling algorithm
   categoryData.forEach(data => {
     const { category, count, color } = data;
     
-    // Improved sizing algorithm - more proportional to count
-    // Base size is proportional but we apply a non-linear transformation
-    // to compress the range and ensure small categories are still visible
+    // Base size is always proportional to count
     const baseSize = count / totalFeatures;
+    
+    // Apply different scaling transformations based on selected method
+    let sizeRatio;
     const minSize = 0.03; // Minimum size for visibility
-    const compressedSize = Math.pow(baseSize, 0.7); // Power less than 1 compresses range
-    const sizeRatio = Math.max(minSize, compressedSize);
-    const flexGrow = sizeRatio * 25; // Scale for better visualization
+    
+    switch (state.treemapScalingMethod) {
+      case 'linear':
+        // Direct linear scaling
+        sizeRatio = Math.max(minSize, baseSize);
+        break;
+      
+      case 'sqrt':
+        // Square root scaling - area proportional
+        sizeRatio = Math.max(minSize, Math.sqrt(baseSize));
+        break;
+      
+      case 'log':
+        // Logarithmic scaling - highly compressed for large ranges
+        // Using log(1+x) to handle small values better
+        sizeRatio = Math.max(minSize, Math.log(1 + baseSize * 20) / Math.log(21));
+        break;
+      
+      case 'power':
+      default:
+        // Default power scaling (0.7 power provides a good balance)
+        sizeRatio = Math.max(minSize, Math.pow(baseSize, 0.7));
+        break;
+    }
+    
+    // Scale factor adjusted per method for better visualization
+    let scaleFactor;
+    switch (state.treemapScalingMethod) {
+      case 'linear': scaleFactor = 15; break;
+      case 'sqrt': scaleFactor = 30; break;
+      case 'log': scaleFactor = 50; break;
+      case 'power': scaleFactor = 25; break;
+      default: scaleFactor = 25;
+    }
+    
+    const flexGrow = sizeRatio * scaleFactor;
     
     // Create cell
     const cell = document.createElement('div');
@@ -550,7 +672,8 @@ function renderTreemapView() {
     }
     
     // Add tooltip with extended information
-    cell.setAttribute('data-tooltip', `${category}: ${count} features (${(count/totalFeatures*100).toFixed(1)}% of total)`);
+    const percentage = (count/totalFeatures*100).toFixed(1);
+    cell.setAttribute('data-tooltip', `${category}: ${count} features (${percentage}% of total)`);
     cell.title = `${category}: ${count} features`;
     
     // Add click handler
