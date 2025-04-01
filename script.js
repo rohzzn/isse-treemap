@@ -7,10 +7,12 @@ const state = {
   selectedDay: null,
   selectedMonthIndex: null,
   selectedCategory: null,
+  selectedContributor: null, // Added for drill-down
   selectedFeatures: [],
   yearRange: { min: 2022, max: 2024 },
-  // Add new state for scaling method
-  treemapScalingMethod: 'power' // 'linear', 'sqrt', 'log', or 'power' (default)
+  treemapLevel: 'category', // 'category' or 'contributor' - tracks current drill-down level
+  treemapScalingMethod: 'power', // 'linear', 'sqrt', 'log', or 'power' (default)
+  treemapHistory: [] // Stack to track treemap navigation history
 };
 
 // Category colors - refined color palette for better cohesion
@@ -52,8 +54,23 @@ const categoryColors = {
   'Uncategorized': '#78909C'   // Blue Grey Light
 };
 
+// Team/Contributor colors for drill-down view
+const contributorColors = {
+  'Frontend': '#42A5F5',       // Blue
+  'Backend': '#66BB6A',        // Green
+  'Mobile': '#FFA726',         // Orange
+  'Design': '#EC407A',         // Pink
+  'Security': '#EF5350',       // Red
+  'QA': '#AB47BC',             // Purple
+  'Infrastructure': '#5C6BC0', // Indigo
+  'API': '#26A69A',            // Teal
+  'DevOps': '#8D6E63',         // Brown
+  'Research': '#78909C'        // Blue Grey
+};
+
 // Normalized category color map for case-insensitive matching
 const normalizedCategoryColors = {};
+const normalizedContributorColors = {};
 
 // DOM elements
 const elements = {
@@ -120,8 +137,8 @@ async function init() {
     // Show loading overlay
     elements.loadingOverlay.classList.remove('hidden');
     
-    // Initialize normalized category colors
-    initializeNormalizedCategoryColors();
+    // Initialize normalized category and contributor colors
+    initializeNormalizedColors();
     
     // Load data
     await loadData();
@@ -152,18 +169,22 @@ async function init() {
   }
 }
 
-// Initialize normalized category colors
-function initializeNormalizedCategoryColors() {
+// Initialize normalized colors
+function initializeNormalizedColors() {
   // Create normalized map for case-insensitive matching
   Object.keys(categoryColors).forEach(category => {
-    normalizedCategoryColors[normalizeCategory(category)] = categoryColors[category];
+    normalizedCategoryColors[normalizeText(category)] = categoryColors[category];
+  });
+  
+  Object.keys(contributorColors).forEach(contributor => {
+    normalizedContributorColors[normalizeText(contributor)] = contributorColors[contributor];
   });
 }
 
-// Normalize category for consistent matching
-function normalizeCategory(category) {
-  if (!category) return '';
-  return category.trim().toLowerCase();
+// Normalize text for consistent matching
+function normalizeText(text) {
+  if (!text) return '';
+  return text.trim().toLowerCase();
 }
 
 // Get color for a category with normalization
@@ -176,8 +197,22 @@ function getCategoryColor(category) {
   }
   
   // Try normalized match
-  const normalizedKey = normalizeCategory(category);
+  const normalizedKey = normalizeText(category);
   return normalizedCategoryColors[normalizedKey] || '#78909C';
+}
+
+// Get color for a contributor with normalization
+function getContributorColor(contributor) {
+  if (!contributor) return '#78909C'; // Default color
+  
+  // Try direct match first
+  if (contributorColors[contributor]) {
+    return contributorColors[contributor];
+  }
+  
+  // Try normalized match
+  const normalizedKey = normalizeText(contributor);
+  return normalizedContributorColors[normalizedKey] || '#78909C';
 }
 
 // Determine year range from data
@@ -255,7 +290,11 @@ function processReleaseData(data) {
       category: category,
       impact: getImpactLevel(item["Feature Description"]),
       team: getTeam(item),
-      bugCount: getBugCount(item)
+      contributor: getContributor(item), // Add contributor info for drill-down
+      bugCount: getBugCount(item),
+      complexity: getComplexityLevel(item), // Add complexity metrics
+      timeToRelease: getTimeToRelease(item), // Add time to release metrics
+      dependencies: getDependencies(item) // Add dependency information
     };
   });
   
@@ -266,16 +305,59 @@ function processReleaseData(data) {
   });
 }
 
-// Extract team information (mocked for demonstration)
+// Extract team information 
 function getTeam(item) {
-  const teams = ['Frontend', 'Backend', 'Mobile', 'Security', 'Infrastructure', 'Design', 'API'];
+  // For demonstration - in a real app this would pull from actual data
+  const teams = ['Frontend', 'Backend', 'Mobile', 'Security', 'Infrastructure', 'Design', 'API', 'QA', 'DevOps'];
   return teams[Math.floor(Math.random() * teams.length)];
 }
 
-// Extract bug count (mocked for demonstration)
+// Extract contributor information (individual engineer)
+function getContributor(item) {
+  // For demonstration - in a real app this would pull from actual data
+  const contributors = [
+    'Sarah Chen', 'Michael Johnson', 'Amit Patel', 'Jessica Kim',
+    'Carlos Rodriguez', 'Emma Thompson', 'David Wilson', 'Olga Petrov',
+    'Marcus Lee', 'Hannah Garcia', 'James Moore', 'Fatima Ali',
+    'Ryan Taylor', 'Sophia Martinez', 'Noah Anderson', 'Wei Zhang'
+  ];
+  return contributors[Math.floor(Math.random() * contributors.length)];
+}
+
+// Extract bug count
 function getBugCount(item) {
   // In a real implementation, this would pull from actual bug data
   return Math.floor(Math.random() * 5);
+}
+
+// Determine complexity level based on description and other factors
+function getComplexityLevel(item) {
+  const complexityLevels = ['Low', 'Medium', 'High'];
+  return complexityLevels[Math.floor(Math.random() * 3)];
+}
+
+// Get time to release (days from feature development to release)
+function getTimeToRelease(item) {
+  // In a real implementation, this would be calculated from actual timeline data
+  return Math.floor(Math.random() * 30 + 10); // 10-40 days
+}
+
+// Get feature dependencies
+function getDependencies(item) {
+  // In a real implementation, this would list actual dependencies
+  const allDependencies = ['API', 'Authentication', 'Database', 'Frontend', 'Notifications', 'Payments'];
+  const count = Math.floor(Math.random() * 3); // 0-2 dependencies
+  
+  // Randomly select 'count' dependencies
+  const dependencies = [];
+  for (let i = 0; i < count; i++) {
+    const dep = allDependencies[Math.floor(Math.random() * allDependencies.length)];
+    if (!dependencies.includes(dep)) {
+      dependencies.push(dep);
+    }
+  }
+  
+  return dependencies;
 }
 
 // Determine impact level based on description
@@ -307,9 +389,13 @@ function setupEventListeners() {
   // View switchers
   elements.treemapViewBtn.addEventListener('click', () => {
     state.view = 'treemap';
+    state.treemapLevel = 'category'; // Reset to top level when switching to treemap
     state.selectedDay = null;
     state.selectedMonthIndex = null;
     state.selectedFeatures = [];
+    state.selectedCategory = null;
+    state.selectedContributor = null;
+    state.treemapHistory = [];
     updateUI();
   });
   
@@ -317,6 +403,7 @@ function setupEventListeners() {
     state.view = 'year';
     state.selectedMonthIndex = null;
     state.selectedCategory = null;
+    state.selectedContributor = null;
     state.selectedFeatures = [];
     updateUI();
   });
@@ -347,7 +434,7 @@ function setupEventListeners() {
     }
   });
   
-  // Add new event listeners for scaling method toggle
+  // Add event listeners for scaling method toggle
   document.getElementById('linearScaling').addEventListener('click', () => {
     state.treemapScalingMethod = 'linear';
     updateScalingToggleUI();
@@ -379,6 +466,60 @@ function setupEventListeners() {
       renderTreemapView();
     }
   });
+  
+  // Add treemap navigation event listener (back button)
+  document.addEventListener('keydown', (e) => {
+    // Go back on Escape key when in treemap and not at top level
+    if (e.key === 'Escape' && state.view === 'treemap' && state.treemapLevel !== 'category') {
+      navigateTreemapUp();
+    }
+  });
+  
+  // Create treemap back button if it doesn't exist
+  if (!document.getElementById('treemapBackBtn')) {
+    const treemapContainer = document.querySelector('.treemap-container');
+    if (treemapContainer) {
+      const backButton = document.createElement('button');
+      backButton.id = 'treemapBackBtn';
+      backButton.className = 'treemap-back-btn hidden';
+      backButton.innerHTML = '&larr; Back';
+      backButton.addEventListener('click', navigateTreemapUp);
+      treemapContainer.parentNode.insertBefore(backButton, treemapContainer);
+    }
+  } else {
+    document.getElementById('treemapBackBtn').addEventListener('click', navigateTreemapUp);
+  }
+}
+
+// Navigate up in the treemap hierarchy
+function navigateTreemapUp() {
+  if (state.treemapHistory.length === 0) return;
+  
+  // Pop the last state
+  const previousState = state.treemapHistory.pop();
+  
+  // Restore previous state
+  state.treemapLevel = previousState.level;
+  state.selectedCategory = previousState.category;
+  state.selectedContributor = previousState.contributor;
+  
+  // Re-render the treemap
+  renderTreemapView();
+  
+  // Update back button visibility
+  updateTreemapBackButton();
+}
+
+// Update treemap back button visibility
+function updateTreemapBackButton() {
+  const backBtn = document.getElementById('treemapBackBtn');
+  if (backBtn) {
+    if (state.treemapLevel !== 'category') {
+      backBtn.classList.remove('hidden');
+    } else {
+      backBtn.classList.add('hidden');
+    }
+  }
 }
 
 // Helper function to update the scaling toggle UI
@@ -418,39 +559,73 @@ function getScalingMethodDescription() {
 function generateCategoryLegend() {
   elements.categoryLegend.innerHTML = '';
   
-  // Get all unique categories from the data
-  const categories = {};
-  state.data.forEach(feature => {
-    categories[feature.category] = true;
-  });
+  // Determine which legend to show based on treemap level
+  const isContributorLevel = state.treemapLevel === 'contributor';
+  
+  // Get unique items to show in legend
+  const items = {};
+  
+  if (isContributorLevel) {
+    // For contributor level, show all teams
+    state.data.forEach(feature => {
+      items[feature.team] = true;
+    });
+  } else {
+    // For category level, show all categories
+    state.data.forEach(feature => {
+      items[feature.category] = true;
+    });
+  }
   
   // Create legend items
-  Object.keys(categories).sort().forEach(category => {
+  Object.keys(items).sort().forEach(item => {
     const legendItem = document.createElement('div');
     legendItem.className = 'legend-item';
     
-    const categoryColor = getCategoryColor(category);
+    const color = isContributorLevel ? getContributorColor(item) : getCategoryColor(item);
     
     const colorSwatch = document.createElement('div');
     colorSwatch.className = 'legend-color';
-    colorSwatch.style.backgroundColor = categoryColor;
+    colorSwatch.style.backgroundColor = color;
     
-    const categoryName = document.createElement('span');
-    categoryName.className = 'legend-label';
-    categoryName.textContent = category;
+    const itemName = document.createElement('span');
+    itemName.className = 'legend-label';
+    itemName.textContent = item;
     
     legendItem.appendChild(colorSwatch);
-    legendItem.appendChild(categoryName);
+    legendItem.appendChild(itemName);
     
     // Add click handler for filtering
     legendItem.addEventListener('click', () => {
       if (state.view === 'treemap') {
-        handleCategoryClick(category);
+        if (isContributorLevel) {
+          // Filter by team at contributor level
+          filterTreemapByTeam(item);
+        } else {
+          // Filter by category at category level
+          handleCategoryClick(item);
+        }
       }
     });
     
     elements.categoryLegend.appendChild(legendItem);
   });
+}
+
+// Filter treemap by team
+function filterTreemapByTeam(team) {
+  // Push current state to history before changing
+  state.treemapHistory.push({
+    level: state.treemapLevel,
+    category: state.selectedCategory,
+    contributor: state.selectedContributor
+  });
+  
+  // Set filter
+  state.selectedTeam = team;
+  
+  // Re-render treemap with team filter
+  renderTreemapView();
 }
 
 // Get all release dates (used for metrics calculation)
@@ -504,11 +679,11 @@ function calculateReleaseMetrics() {
   const velocity = state.data.length / monthsInRange;
   elements.featureVelocity.textContent = velocity.toFixed(1) + '/month';
   
-  // Generate velocity trend chart (simplified version for display)
+  // Generate velocity trend chart
   generateVelocityTrend();
 }
 
-// Generate a simplified velocity trend chart
+// Generate a velocity trend chart
 function generateVelocityTrend() {
   // Group data by month
   const monthlyData = {};
@@ -554,6 +729,7 @@ function updateUI() {
   // Render appropriate view
   if (state.view === 'treemap') {
     renderTreemapView();
+    updateTreemapBackButton();
   } else if (state.view === 'year') {
     renderYearView();
   } else if (state.view === 'month') {
@@ -565,6 +741,9 @@ function updateUI() {
   
   // Update scaling toggle visibility
   updateScalingToggleUI();
+  
+  // Update category legend based on current treemap level
+  generateCategoryLegend();
 }
 
 // Update active state of buttons
@@ -581,104 +760,186 @@ function updateViewVisibility() {
   elements.monthlyView.classList.toggle('hidden', state.view !== 'month');
 }
 
+// Apply treemap scaling based on selected method
+function applyTreemapScaling(baseSize) {
+  // For very small values, set a small minimum (smaller for linear mode)
+  const minSize = state.treemapScalingMethod === 'linear' ? 0.005 : 0.01;
+  
+  switch (state.treemapScalingMethod) {
+    case 'linear':
+      // Direct linear scaling - no transformation
+      // When using linear scaling, we want it to be truly proportional
+      return Math.max(minSize, baseSize);
+    
+    case 'sqrt':
+      // Square root scaling - area proportional
+      return Math.max(minSize, Math.sqrt(baseSize));
+    
+    case 'log':
+      // Logarithmic scaling - highly compressed for large ranges
+      // Using log(1+x) to handle small values better
+      return Math.max(minSize, Math.log(1 + baseSize * 20) / Math.log(21));
+    
+    case 'power':
+    default:
+      // Default power scaling (0.7 power provides a good balance)
+      return Math.max(minSize, Math.pow(baseSize, 0.7));
+  }
+}
+
+// Get scale factor based on scaling method
+function getScalingFactor() {
+  switch (state.treemapScalingMethod) {
+    case 'linear': return 1; // No additional scaling for linear - we want direct proportion
+    case 'sqrt': return 30;
+    case 'log': return 50;
+    case 'power': return 25;
+    default: return 25;
+  }
+}
+
 // Render treemap view with scaling options
 function renderTreemapView() {
-  // Count features by category
-  const categoryCount = {};
-  state.data.forEach(feature => {
-    const category = feature.category || 'Uncategorized';
-    categoryCount[category] = (categoryCount[category] || 0) + 1;
-  });
-  
-  // Convert to array for treemap
-  const categoryData = Object.entries(categoryCount).map(([category, count]) => ({
-    category,
-    count,
-    color: getCategoryColor(category)
-  })).sort((a, b) => b.count - a.count);
-  
   // Clear container
   elements.treemapContainer.innerHTML = '';
   
-  // Create treemap
+  // Set title and breadcrumb
+  let treemapTitle = 'Feature Categories';
+  let breadcrumb = '';
+  
+  // Determine what data to show based on treemap level
+  let treemapData = [];
+  
+  if (state.treemapLevel === 'category') {
+    // Show all categories
+    treemapData = getCategoryTreemapData();
+    treemapTitle = 'Feature Categories';
+  } else if (state.treemapLevel === 'contributor') {
+    // Show contributors for selected category
+    treemapData = getContributorTreemapData(state.selectedCategory);
+    treemapTitle = `Contributors for ${state.selectedCategory}`;
+    breadcrumb = `Categories / ${state.selectedCategory}`;
+  }
+  
+  // Add treemap title and breadcrumb
+  const titleContainer = document.createElement('div');
+  titleContainer.className = 'treemap-title-container';
+  
+  // Add back button when in drill-down mode
+  if (state.treemapLevel !== 'category') {
+    const backButton = document.createElement('button');
+    backButton.className = 'treemap-back-btn';
+    backButton.innerHTML = '&larr; Back to Categories';
+    backButton.addEventListener('click', navigateTreemapUp);
+    titleContainer.appendChild(backButton);
+  }
+  
+  if (breadcrumb) {
+    const breadcrumbEl = document.createElement('div');
+    breadcrumbEl.className = 'treemap-breadcrumb';
+    breadcrumbEl.textContent = breadcrumb;
+    titleContainer.appendChild(breadcrumbEl);
+  }
+  
+  const title = document.createElement('h3');
+  title.className = 'treemap-title';
+  title.textContent = treemapTitle;
+  titleContainer.appendChild(title);
+  
+  // Add title before treemap
+  elements.treemapContainer.appendChild(titleContainer);
+  
+  // Create treemap wrapper
   const treemap = document.createElement('div');
   treemap.className = 'treemap-grid';
   
-  // Total features
-  const totalFeatures = state.data.length;
+  // Total count for proportion calculations
+  const totalCount = treemapData.reduce((sum, item) => sum + item.count, 0);
+  
+  // Scale factor based on selected method
+  const scaleFactor = getScalingFactor();
   
   // Create treemap cells with the selected scaling algorithm
-  categoryData.forEach(data => {
-    const { category, count, color } = data;
+  treemapData.forEach(data => {
+    const { label, count, color, tooltip, metrics } = data;
     
     // Base size is always proportional to count
-    const baseSize = count / totalFeatures;
+    const baseSize = count / totalCount;
     
-    // Apply different scaling transformations based on selected method
-    let sizeRatio;
-    const minSize = 0.03; // Minimum size for visibility
+    // Apply scaling transformation
+    const sizeRatio = applyTreemapScaling(baseSize);
     
-    switch (state.treemapScalingMethod) {
-      case 'linear':
-        // Direct linear scaling
-        sizeRatio = Math.max(minSize, baseSize);
-        break;
-      
-      case 'sqrt':
-        // Square root scaling - area proportional
-        sizeRatio = Math.max(minSize, Math.sqrt(baseSize));
-        break;
-      
-      case 'log':
-        // Logarithmic scaling - highly compressed for large ranges
-        // Using log(1+x) to handle small values better
-        sizeRatio = Math.max(minSize, Math.log(1 + baseSize * 20) / Math.log(21));
-        break;
-      
-      case 'power':
-      default:
-        // Default power scaling (0.7 power provides a good balance)
-        sizeRatio = Math.max(minSize, Math.pow(baseSize, 0.7));
-        break;
+    // For linear scaling, we use a direct area proportion approach
+    let cellSize;
+    if (state.treemapScalingMethod === 'linear') {
+      // For linear scaling, use direct area proportion
+      // Calculate area as percentage of total and apply to cell
+      cellSize = {
+        // Set explicit width and height for linear scaling to ensure proper proportions
+        width: `${Math.sqrt(baseSize) * 100}%`, 
+        height: `${Math.sqrt(baseSize) * 100}%`,
+        flex: count // Use count directly as flex basis for true linear scaling
+      };
+    } else {
+      // For other scaling methods, use the flex approach
+      cellSize = {
+        flexGrow: sizeRatio * scaleFactor
+      };
     }
-    
-    // Scale factor adjusted per method for better visualization
-    let scaleFactor;
-    switch (state.treemapScalingMethod) {
-      case 'linear': scaleFactor = 15; break;
-      case 'sqrt': scaleFactor = 30; break;
-      case 'log': scaleFactor = 50; break;
-      case 'power': scaleFactor = 25; break;
-      default: scaleFactor = 25;
-    }
-    
-    const flexGrow = sizeRatio * scaleFactor;
     
     // Create cell
     const cell = document.createElement('div');
     cell.className = 'treemap-cell';
     cell.style.backgroundColor = color;
-    cell.style.flexGrow = flexGrow;
     
-    // Add label
-    const label = document.createElement('div');
-    label.className = 'treemap-label';
-    label.innerHTML = `<div>${category}</div><div>${count}</div>`;
-    cell.appendChild(label);
-    
-    // Add selected class if this category is selected
-    if (category === state.selectedCategory) {
-      cell.classList.add('selected');
+    // Apply sizing style based on scaling method
+    if (state.treemapScalingMethod === 'linear') {
+      cell.style.flexBasis = `${baseSize * 100}%`; // Direct proportion
+      cell.style.flexGrow = baseSize * 100; // Ensure cell grows proportionally
+    } else {
+      cell.style.flexGrow = cellSize.flexGrow;
     }
     
+    // Add label
+    const labelElement = document.createElement('div');
+    labelElement.className = 'treemap-label';
+    labelElement.innerHTML = `<div>${label}</div><div>${count}</div>`;
+    
+    // Add metrics badges if available
+    if (metrics) {
+      const metricsBadges = document.createElement('div');
+      metricsBadges.className = 'treemap-metrics';
+      
+      if (metrics.bugs !== undefined) {
+        const bugBadge = document.createElement('span');
+        bugBadge.className = 'metric-badge bugs';
+        bugBadge.innerHTML = `<span class="metric-icon">🐞</span> ${metrics.bugs}`;
+        metricsBadges.appendChild(bugBadge);
+      }
+      
+      if (metrics.avgTime !== undefined) {
+        const timeBadge = document.createElement('span');
+        timeBadge.className = 'metric-badge time';
+        timeBadge.innerHTML = `<span class="metric-icon">⏱️</span> ${metrics.avgTime}d`;
+        metricsBadges.appendChild(timeBadge);
+      }
+      
+      labelElement.appendChild(metricsBadges);
+    }
+    
+    cell.appendChild(labelElement);
+    
     // Add tooltip with extended information
-    const percentage = (count/totalFeatures*100).toFixed(1);
-    cell.setAttribute('data-tooltip', `${category}: ${count} features (${percentage}% of total)`);
-    cell.title = `${category}: ${count} features`;
+    cell.setAttribute('data-tooltip', tooltip);
+    cell.title = tooltip.split('\n')[0]; // Basic tooltip for browsers without custom tooltip support
     
     // Add click handler
     cell.addEventListener('click', () => {
-      handleCategoryClick(category);
+      if (state.treemapLevel === 'category') {
+        handleCategoryClick(label);
+      } else if (state.treemapLevel === 'contributor') {
+        handleContributorClick(label);
+      }
     });
     
     treemap.appendChild(cell);
@@ -686,37 +947,178 @@ function renderTreemapView() {
   
   elements.treemapContainer.appendChild(treemap);
   
-  // Update category details if a category is selected
-  if (state.selectedCategory) {
+  // Update category details if something is selected
+  if (state.treemapLevel === 'category' && state.selectedCategory) {
     renderCategoryDetails();
+  } else if (state.treemapLevel === 'contributor' && state.selectedContributor) {
+    renderContributorDetails();
   } else {
     elements.categoryDetails.classList.add('hidden');
   }
 }
 
-// Handle category click in treemap
-function handleCategoryClick(category) {
-  if (state.selectedCategory === category) {
-    // Clear selection if clicking the same category again
-    state.selectedCategory = null;
-    state.selectedFeatures = [];
-    elements.categoryDetails.classList.add('hidden');
-  } else {
-    state.selectedCategory = category;
-    state.selectedFeatures = state.data.filter(
-      feature => feature.category === category
-    );
-    renderCategoryDetails();
-  }
+// Get data for category treemap
+function getCategoryTreemapData() {
+  // Count features by category
+  const categoryCount = {};
+  const categoryBugs = {};
+  const categoryTimes = {};
   
-  // Re-render the treemap to update selected state
-  renderTreemapView();
+  state.data.forEach(feature => {
+    const category = feature.category || 'Uncategorized';
+    
+    // Count features
+    categoryCount[category] = (categoryCount[category] || 0) + 1;
+    
+    // Sum bugs
+    categoryBugs[category] = (categoryBugs[category] || 0) + feature.bugCount;
+    
+    // Sum time to release
+    if (!categoryTimes[category]) {
+      categoryTimes[category] = [];
+    }
+    categoryTimes[category].push(feature.timeToRelease);
+  });
+  
+  // Calculate average time to release
+  const categoryAvgTimes = {};
+  Object.keys(categoryTimes).forEach(category => {
+    const times = categoryTimes[category];
+    categoryAvgTimes[category] = Math.round(times.reduce((sum, time) => sum + time, 0) / times.length);
+  });
+  
+  // Convert to array for treemap
+  return Object.entries(categoryCount).map(([category, count]) => {
+    const color = getCategoryColor(category);
+    const bugs = categoryBugs[category] || 0;
+    const avgTime = categoryAvgTimes[category] || 0;
+    const bugRatio = count > 0 ? (bugs / count).toFixed(1) : '0';
+    
+    return {
+      label: category,
+      count,
+      color,
+      metrics: {
+        bugs,
+        avgTime
+      },
+      tooltip: `${category}: ${count} features\n🐞 ${bugs} bugs (${bugRatio} per feature)\n⏱️ ${avgTime} days avg time to release`
+    };
+  }).sort((a, b) => b.count - a.count);
+}
+
+// Get data for contributor treemap (when a category is selected)
+function getContributorTreemapData(selectedCategory) {
+  // Filter features by selected category
+  const categoryFeatures = state.data.filter(
+    feature => feature.category === selectedCategory
+  );
+  
+  // Count features by contributor (team)
+  const contributorCount = {};
+  const contributorBugs = {};
+  const contributorTimes = {};
+  
+  categoryFeatures.forEach(feature => {
+    const contributor = feature.team; // Using team as contributor for drill-down
+    
+    // Count features
+    contributorCount[contributor] = (contributorCount[contributor] || 0) + 1;
+    
+    // Sum bugs
+    contributorBugs[contributor] = (contributorBugs[contributor] || 0) + feature.bugCount;
+    
+    // Sum time to release
+    if (!contributorTimes[contributor]) {
+      contributorTimes[contributor] = [];
+    }
+    contributorTimes[contributor].push(feature.timeToRelease);
+  });
+  
+  // Calculate average time to release
+  const contributorAvgTimes = {};
+  Object.keys(contributorTimes).forEach(contributor => {
+    const times = contributorTimes[contributor];
+    contributorAvgTimes[contributor] = Math.round(times.reduce((sum, time) => sum + time, 0) / times.length);
+  });
+  
+  // Convert to array for treemap
+  return Object.entries(contributorCount).map(([contributor, count]) => {
+    const color = getContributorColor(contributor);
+    const bugs = contributorBugs[contributor] || 0;
+    const avgTime = contributorAvgTimes[contributor] || 0;
+    const bugRatio = count > 0 ? (bugs / count).toFixed(1) : '0';
+    
+    return {
+      label: contributor,
+      count,
+      color,
+      metrics: {
+        bugs,
+        avgTime
+      },
+      tooltip: `${contributor}: ${count} features\n🐞 ${bugs} bugs (${bugRatio} per feature)\n⏱️ ${avgTime} days avg time to release`
+    };
+  }).sort((a, b) => b.count - a.count);
+}
+
+// Handle category click in treemap (for drill-down)
+function handleCategoryClick(category) {
+  if (state.treemapLevel === 'category') {
+    if (state.selectedCategory === category) {
+      // If clicking the same category, toggle details panel
+      if (elements.categoryDetails.classList.contains('hidden')) {
+        state.selectedFeatures = state.data.filter(
+          feature => feature.category === category
+        );
+        renderCategoryDetails();
+      } else {
+        elements.categoryDetails.classList.add('hidden');
+      }
+    } else {
+      // If clicking a different category, save state and drill down
+      state.treemapHistory.push({
+        level: state.treemapLevel,
+        category: state.selectedCategory,
+        contributor: state.selectedContributor
+      });
+      
+      // Update state for drill-down
+      state.selectedCategory = category;
+      state.treemapLevel = 'contributor';
+      state.selectedContributor = null;
+      state.selectedFeatures = state.data.filter(
+        feature => feature.category === category
+      );
+      
+      // Hide details panel during drill-down
+      elements.categoryDetails.classList.add('hidden');
+      
+      // Render the contributor-level treemap
+      renderTreemapView();
+      updateTreemapBackButton();
+    }
+  }
+}
+
+// Handle contributor click in treemap
+function handleContributorClick(contributor) {
+  if (state.treemapLevel === 'contributor') {
+    state.selectedContributor = contributor;
+    state.selectedFeatures = state.data.filter(
+      feature => feature.category === state.selectedCategory && feature.team === contributor
+    );
+    
+    renderContributorDetails();
+  }
 }
 
 // Calculate category metrics
 function calculateCategoryMetrics(features) {
-  // Calculate time to release (mock data for demonstration)
-  const avgTimeToRelease = Math.round(Math.random() * 20 + 10); // 10-30 days
+  // Calculate time to release
+  const avgTimeToRelease = Math.round(
+    features.reduce((sum, feature) => sum + feature.timeToRelease, 0) / features.length
+  );
   
   // Calculate bug count
   const totalBugs = features.reduce((sum, feature) => sum + feature.bugCount, 0);
@@ -739,7 +1141,8 @@ function calculateCategoryMetrics(features) {
     avgTimeToRelease,
     totalBugs,
     teamContributions,
-    topContributors
+    topContributors,
+    bugRatio: features.length > 0 ? (totalBugs / features.length).toFixed(1) : 0
   };
 }
 
@@ -760,9 +1163,14 @@ function renderCategoryDetails() {
       <h4 class="category-title" style="color: ${categoryColor}">
         ${state.selectedCategory} Features
       </h4>
-      <span class="category-count">
-        ${state.selectedFeatures.length} feature${state.selectedFeatures.length !== 1 ? 's' : ''}
-      </span>
+      <div class="category-actions">
+        <span class="category-count">
+          ${state.selectedFeatures.length} feature${state.selectedFeatures.length !== 1 ? 's' : ''}
+        </span>
+        <button id="drillDownBtn" class="drill-down-btn">
+          <span class="drill-icon">&#128269;</span> Show Contributors
+        </button>
+      </div>
     </div>
     
     <div class="category-metrics">
@@ -772,7 +1180,7 @@ function renderCategoryDetails() {
       </div>
       <div class="metric-card">
         <div class="metric-card-label">Total Bugs</div>
-        <div class="metric-card-value">${metrics.totalBugs}</div>
+        <div class="metric-card-value">${metrics.totalBugs} (${metrics.bugRatio}/feature)</div>
       </div>
       <div class="metric-card">
         <div class="metric-card-label">Top Contributors</div>
@@ -786,6 +1194,27 @@ function renderCategoryDetails() {
       ${state.selectedFeatures.length > 0 ? '' : '<p class="no-features">No features found for this category</p>'}
     </div>
   `;
+  
+  // Add drill-down button event listener
+  document.getElementById('drillDownBtn').addEventListener('click', () => {
+    // Save state for back navigation
+    state.treemapHistory.push({
+      level: state.treemapLevel,
+      category: state.selectedCategory,
+      contributor: state.selectedContributor
+    });
+    
+    // Change to contributor view
+    state.treemapLevel = 'contributor';
+    state.selectedContributor = null;
+    
+    // Hide details panel during drill-down
+    elements.categoryDetails.classList.add('hidden');
+    
+    // Render the contributor-level treemap
+    renderTreemapView();
+    updateTreemapBackButton();
+  });
   
   // Get container for feature items
   const featuresContainer = document.getElementById('categoryFeatures');
@@ -834,6 +1263,119 @@ function renderCategoryDetails() {
       metadata.className = 'feature-metadata';
       metadata.innerHTML = `
         <span class="metadata-item">Bug Count: ${feature.bugCount}</span>
+        <span class="metadata-item">Time to Release: ${feature.timeToRelease} days</span>
+        <span class="metadata-item">Complexity: ${feature.complexity}</span>
+      `;
+      
+      // Dependencies if available
+      if (feature.dependencies && feature.dependencies.length > 0) {
+        const depElement = document.createElement('span');
+        depElement.className = 'metadata-item dependencies';
+        depElement.innerHTML = `Dependencies: ${feature.dependencies.join(', ')}`;
+        metadata.appendChild(depElement);
+      }
+      
+      featureItem.appendChild(description);
+      featureItem.appendChild(metadata);
+      featuresContainer.appendChild(featureItem);
+    });
+  }
+}
+
+// Render contributor details
+function renderContributorDetails() {
+  // Update container visibility
+  elements.categoryDetails.classList.remove('hidden');
+  
+  // Calculate metrics
+  const metrics = calculateCategoryMetrics(state.selectedFeatures);
+  
+  // Get contributor color
+  const contributorColor = getContributorColor(state.selectedContributor);
+  
+  // Create contributor details
+  elements.categoryDetails.innerHTML = `
+    <div class="category-details-header">
+      <h4 class="category-title" style="color: ${contributorColor}">
+        ${state.selectedContributor} (${state.selectedCategory})
+      </h4>
+      <span class="category-count">
+        ${state.selectedFeatures.length} feature${state.selectedFeatures.length !== 1 ? 's' : ''}
+      </span>
+    </div>
+    
+    <div class="category-metrics">
+      <div class="metric-card">
+        <div class="metric-card-label">Avg Time to Release</div>
+        <div class="metric-card-value">${metrics.avgTimeToRelease} days</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Total Bugs</div>
+        <div class="metric-card-value">${metrics.totalBugs} (${metrics.bugRatio}/feature)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Primary Category</div>
+        <div class="metric-card-value">${state.selectedCategory}</div>
+      </div>
+    </div>
+    
+    <div class="category-features-list" id="contributorFeatures">
+      ${state.selectedFeatures.length > 0 ? '' : '<p class="no-features">No features found for this contributor</p>'}
+    </div>
+  `;
+  
+  // Get container for feature items
+  const featuresContainer = document.getElementById('contributorFeatures');
+  
+  if (featuresContainer && state.selectedFeatures.length > 0) {
+    // Sort features by date (newest first)
+    const sortedFeatures = [...state.selectedFeatures].sort(
+      (a, b) => new Date(b.date) - new Date(a.date)
+    );
+    
+    // Add feature items
+    sortedFeatures.forEach(feature => {
+      const featureItem = document.createElement('div');
+      featureItem.className = 'feature-item';
+      
+      const featureHeader = document.createElement('div');
+      featureHeader.className = 'feature-header';
+      
+      // Category indicator
+      const categoryTag = document.createElement('span');
+      categoryTag.className = 'feature-category';
+      categoryTag.textContent = feature.category;
+      const categoryColor = getCategoryColor(feature.category);
+      categoryTag.style.backgroundColor = `${categoryColor}20`; // 20% opacity
+      categoryTag.style.color = categoryColor;
+      featureHeader.appendChild(categoryTag);
+      
+      // Impact indicator
+      const impactIndicator = document.createElement('span');
+      impactIndicator.className = `impact-label impact-${feature.impact.toLowerCase()}`;
+      impactIndicator.textContent = feature.impact;
+      featureHeader.appendChild(impactIndicator);
+      
+      // Date
+      const dateDisplay = document.createElement('span');
+      dateDisplay.className = 'feature-date';
+      dateDisplay.textContent = new Date(feature.date).toLocaleDateString();
+      featureHeader.appendChild(dateDisplay);
+      
+      featureItem.appendChild(featureHeader);
+      
+      // Description
+      const description = document.createElement('p');
+      description.className = 'feature-description';
+      description.textContent = feature.description;
+      
+      // Feature metadata
+      const metadata = document.createElement('div');
+      metadata.className = 'feature-metadata';
+      metadata.innerHTML = `
+        <span class="metadata-item">Bug Count: ${feature.bugCount}</span>
+        <span class="metadata-item">Time to Release: ${feature.timeToRelease} days</span>
+        <span class="metadata-item">Complexity: ${feature.complexity}</span>
       `;
       
       featureItem.appendChild(description);
@@ -1266,7 +1808,17 @@ function renderDayFeatures() {
     metadata.className = 'feature-metadata';
     metadata.innerHTML = `
       <span class="metadata-item">Bug Count: ${feature.bugCount}</span>
+      <span class="metadata-item">Time to Release: ${feature.timeToRelease} days</span>
+      <span class="metadata-item">Complexity: ${feature.complexity}</span>
     `;
+    
+    // Dependencies if available
+    if (feature.dependencies && feature.dependencies.length > 0) {
+      const depElement = document.createElement('span');
+      depElement.className = 'metadata-item dependencies';
+      depElement.innerHTML = `Dependencies: ${feature.dependencies.join(', ')}`;
+      metadata.appendChild(depElement);
+    }
     
     featureItem.appendChild(description);
     featureItem.appendChild(metadata);
