@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zoom Release Engineer Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Load required libraries -->
+  <script src="lib/xlsx.full.min.js"></script>
+  <script src="lib/lodash.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="dashboard-container" id="dashboardContainer">
+      <h2 class="title">Zoom Release Engineer Dashboard</h2>
+      <p class="subtitle">Feature releases from Jan 2022 to Jan 2024</p>
+      
+      <!-- Release metrics at the top -->
+      <div class="metrics-container">
+        <div class="metrics-grid">
+          <div class="metric-item">
+            <span class="metric-label">Total Features</span>
+            <span id="totalFeatures" class="metric-value">0</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Total Releases</span>
+            <span id="totalReleases" class="metric-value">0</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Avg. Release Size</span>
+            <span id="avgReleaseSize" class="metric-value">0</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Release Cadence</span>
+            <span id="releaseCadence" class="metric-value">0 days</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Summary statistics panel -->
+      <div class="summary-panel" id="summaryPanel">
+        <div class="summary-grid">
+          <div class="summary-item">
+            <h4 class="stat-label">Features by Quarter</h4>
+            <div class="quarter-stats" id="quarterStats"></div>
+          </div>
+          
+          <div class="summary-item">
+            <h4 class="stat-label">Feature Velocity</h4>
+            <div id="featureVelocity" class="stat-value">0/month</div>
+            <div id="velocityTrend" class="trend-chart"></div>
+          </div>
+          
+          <div class="summary-item">
+            <h4 class="stat-label">Top Categories</h4>
+            <div class="category-stats" id="categoryStats"></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Controls section -->
+      <div class="controls">
+        <div class="control-group">
+          <span class="control-label">View:</span>
+          <div class="button-group">
+            <button id="treemapViewBtn" class="active">Treemap</button>
+            <button id="yearViewBtn">Year</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Category legend -->
+      <div class="category-legend" id="categoryLegend">
+        <!-- Category legend will be populated by JS -->
+      </div>
+      
+      <!-- Visualization container -->
+      <div class="visualization-container">
+        <!-- Treemap view -->
+        <div id="treemapView" class="view-container">
+          <div class="treemap-container" id="treemapContainer">
+            <!-- Treemap will be populated by JS -->
+          </div>
+          
+          <div id="categoryDetails" class="category-details hidden">
+            <!-- Category details will be populated by JS -->
+          </div>
+        </div>
+        
+        <!-- Yearly view -->
+        <div id="yearlyView" class="view-container hidden">
+          <div class="nav-bar">
+            <button id="prevYearBtn" class="nav-btn">&larr;</button>
+            <h3 id="yearLabel" class="view-title">2022</h3>
+            <button id="nextYearBtn" class="nav-btn">&rarr;</button>
+          </div>
+          
+          <div id="yearlyGrid" class="yearly-grid">
+            <!-- Year grid will be populated by JS -->
+          </div>
+          
+          <div id="monthFeaturesList" class="features-list-container hidden">
+            <!-- Month features will be populated by JS -->
+          </div>
+        </div>
+        
+        <!-- Monthly view (hidden by default, accessible via Year view) -->
+        <div id="monthlyView" class="view-container hidden">
+          <div class="nav-bar">
+            <button id="backToYearBtn" class="nav-btn">&larr; Back to Year</button>
+            <h3 id="monthYearLabel" class="view-title">January 2022</h3>
+          </div>
+          
+          <div id="monthlyGrid" class="monthly-grid">
+            <!-- Month grid will be populated by JS -->
+          </div>
+          
+          <div id="dayFeaturesList" class="features-list-container hidden">
+            <!-- Day features will be populated by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Loading overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loader"></div>
+    <p>Loading data...</p>
+  </div>
+  
+  <script src="script.js"></script>
+</body>
+</html>
