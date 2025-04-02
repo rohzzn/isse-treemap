@@ -85,7 +85,8 @@ const elements = {
   categoryDetails: document.getElementById('categoryDetails'),
   categoryLegend: document.getElementById('categoryLegend'),
   treemapToggleGroup: document.getElementById('treemapToggleGroup'),
-  treemapModeToggle: document.getElementById('treemapModeToggle'),
+  categoryModeBtn: document.getElementById('categoryModeBtn'),
+  quarterModeBtn: document.getElementById('quarterModeBtn'),
   
   // Month view
   monthlyView: document.getElementById('monthlyView'),
@@ -430,16 +431,35 @@ function setupEventListeners() {
     }
   });
   
-  // Treemap mode toggle
-  elements.treemapModeToggle.addEventListener('change', (e) => {
-    state.treemapMode = e.target.checked ? 'quarter' : 'category';
-    state.treemapLevel = state.treemapMode; // Reset to top level
-    state.selectedCategory = null;
-    state.selectedContributor = null;
-    state.selectedQuarter = null;
-    state.selectedFeatures = [];
-    state.treemapHistory = [];
-    renderTreemapView();
+  // Treemap mode buttons
+  elements.categoryModeBtn.addEventListener('click', () => {
+    if (state.treemapMode !== 'category') {
+      state.treemapMode = 'category';
+      state.treemapLevel = 'category'; // Reset to top level
+      state.selectedCategory = null;
+      state.selectedContributor = null;
+      state.selectedQuarter = null;
+      state.selectedFeatures = [];
+      state.treemapHistory = [];
+      updateActiveButtons();
+      renderTreemapView();
+      generateCategoryLegend(); // Update legend
+    }
+  });
+  
+  elements.quarterModeBtn.addEventListener('click', () => {
+    if (state.treemapMode !== 'quarter') {
+      state.treemapMode = 'quarter';
+      state.treemapLevel = 'quarter'; // Reset to top level
+      state.selectedCategory = null;
+      state.selectedContributor = null;
+      state.selectedQuarter = null;
+      state.selectedFeatures = [];
+      state.treemapHistory = [];
+      updateActiveButtons();
+      renderTreemapView();
+      generateCategoryLegend(); // Update legend
+    }
   });
   
   // Track window resize for treemap updates
@@ -451,6 +471,17 @@ function setupEventListeners() {
   
   // Initialize treemap toggle visibility
   showTreemapToggle(state.view === 'treemap');
+}
+
+// Update active state of buttons
+function updateActiveButtons() {
+  // View buttons
+  elements.treemapViewBtn.classList.toggle('active', state.view === 'treemap');
+  elements.yearViewBtn.classList.toggle('active', state.view === 'year');
+  
+  // Treemap mode buttons
+  elements.categoryModeBtn.classList.toggle('active', state.treemapMode === 'category');
+  elements.quarterModeBtn.classList.toggle('active', state.treemapMode === 'quarter');
 }
 
 // Show/hide treemap toggle
@@ -480,6 +511,9 @@ function navigateTreemapUp() {
   
   // Re-render the treemap
   renderTreemapView();
+  
+  // Update legend
+  generateCategoryLegend();
 }
 
 // Get all release dates (used for metrics calculation)
@@ -594,13 +628,6 @@ function updateUI() {
   
   // Update category legend based on current treemap level
   generateCategoryLegend();
-}
-
-// Update active state of buttons
-function updateActiveButtons() {
-  // View buttons
-  elements.treemapViewBtn.classList.toggle('active', state.view === 'treemap');
-  elements.yearViewBtn.classList.toggle('active', state.view === 'year');
 }
 
 // Update view visibility
@@ -967,6 +994,9 @@ function handleCategoryClick(category) {
     
     // Render the contributor-level treemap
     renderTreemapView();
+    
+    // Update legend
+    generateCategoryLegend();
   }
 }
 
@@ -1249,6 +1279,27 @@ function renderContributorDetails() {
 // Generate category legend
 function generateCategoryLegend() {
   elements.categoryLegend.innerHTML = '';
+  
+  // Add legend title based on current view
+  const legendTitle = document.createElement('div');
+  legendTitle.className = 'legend-title';
+  
+  // Set appropriate title based on treemap mode and level
+  if (state.treemapMode === 'category') {
+    if (state.treemapLevel === 'category') {
+      legendTitle.textContent = 'Feature Categories';
+    } else if (state.treemapLevel === 'contributor') {
+      legendTitle.textContent = 'Teams';
+    }
+  } else if (state.treemapMode === 'quarter') {
+    if (state.treemapLevel === 'quarter') {
+      legendTitle.textContent = 'Quarters';
+    } else if (state.treemapLevel === 'quarter-category') {
+      legendTitle.textContent = `Categories in ${state.selectedQuarter}`;
+    }
+  }
+  
+  elements.categoryLegend.appendChild(legendTitle);
   
   // Determine which legend to show based on treemap mode and level
   const isQuarterMode = state.treemapMode === 'quarter';
@@ -2001,6 +2052,9 @@ function handleQuarterClick(quarter) {
     
     // Render the quarter-category treemap
     renderTreemapView();
+    
+    // Update legend to show categories
+    generateCategoryLegend();
   }
 }
 
