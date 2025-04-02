@@ -11,7 +11,6 @@ const state = {
   selectedFeatures: [],
   yearRange: { min: 2022, max: 2024 },
   treemapLevel: 'category', // 'category' or 'contributor' - tracks current drill-down level
-  treemapScalingMethod: 'power', // 'linear', 'sqrt', 'log', or 'power' (default)
   treemapHistory: [] // Stack to track treemap navigation history
 };
 
@@ -33,15 +32,15 @@ const categoryColors = {
   
   // Original colors for specific categories
   'UI/UX': '#1E88E5',         // Blue
-  'Security': '#D32F2F',       // Red
+  'Security': '#EF5350',       // Red
   'Performance': '#43A047',    // Green
-  'API': '#FF9800',            // Orange
+  'API': '#26A69A',            // Teal
   'Admin Controls': '#9C27B0', // Purple
   'Integration': '#3949AB',    // Indigo
   'Audio/Video': '#00ACC1',    // Cyan
   'Chat': '#E91E63',           // Pink
   'Whiteboard': '#8BC34A',     // Light Green
-  'Mobile': '#795548',         // Brown
+  'Mobile': '#FFA726',         // Orange
   'Desktop': '#607D8B',        // Blue Grey
   'Cloud Storage': '#00BCD4',  // Teal
   'Calendar': '#FFEB3B',       // Yellow
@@ -51,11 +50,9 @@ const categoryColors = {
   'Recording': '#F57F17',      // Amber
   'Search': '#FFA000',         // Amber
   'Notifications': '#EF6C00',  // Orange
-  'Uncategorized': '#78909C'   // Blue Grey Light
-};
-
-// Team/Contributor colors for drill-down view
-const contributorColors = {
+  'Uncategorized': '#78909C',  // Blue Grey Light
+  
+  // Team colors for contributor view
   'Frontend': '#42A5F5',       // Blue
   'Backend': '#66BB6A',        // Green
   'Mobile': '#FFA726',         // Orange
@@ -65,12 +62,11 @@ const contributorColors = {
   'Infrastructure': '#5C6BC0', // Indigo
   'API': '#26A69A',            // Teal
   'DevOps': '#8D6E63',         // Brown
-  'Research': '#78909C'        // Blue Grey
+  'Research': '#78909C'        // Blue Grey  
 };
 
 // Normalized category color map for case-insensitive matching
 const normalizedCategoryColors = {};
-const normalizedContributorColors = {};
 
 // DOM elements
 const elements = {
@@ -137,7 +133,7 @@ async function init() {
     // Show loading overlay
     elements.loadingOverlay.classList.remove('hidden');
     
-    // Initialize normalized category and contributor colors
+    // Initialize normalized category colors
     initializeNormalizedColors();
     
     // Load data
@@ -158,9 +154,6 @@ async function init() {
     // Initial render
     updateUI();
     
-    // Update scaling toggle UI
-    updateScalingToggleUI();
-    
     // Hide loading overlay
     elements.loadingOverlay.classList.add('hidden');
   } catch (error) {
@@ -174,10 +167,6 @@ function initializeNormalizedColors() {
   // Create normalized map for case-insensitive matching
   Object.keys(categoryColors).forEach(category => {
     normalizedCategoryColors[normalizeText(category)] = categoryColors[category];
-  });
-  
-  Object.keys(contributorColors).forEach(contributor => {
-    normalizedContributorColors[normalizeText(contributor)] = contributorColors[contributor];
   });
 }
 
@@ -199,20 +188,6 @@ function getCategoryColor(category) {
   // Try normalized match
   const normalizedKey = normalizeText(category);
   return normalizedCategoryColors[normalizedKey] || '#78909C';
-}
-
-// Get color for a contributor with normalization
-function getContributorColor(contributor) {
-  if (!contributor) return '#78909C'; // Default color
-  
-  // Try direct match first
-  if (contributorColors[contributor]) {
-    return contributorColors[contributor];
-  }
-  
-  // Try normalized match
-  const normalizedKey = normalizeText(contributor);
-  return normalizedContributorColors[normalizedKey] || '#78909C';
 }
 
 // Determine year range from data
@@ -434,39 +409,6 @@ function setupEventListeners() {
     }
   });
   
-  // Add event listeners for scaling method toggle
-  document.getElementById('linearScaling').addEventListener('click', () => {
-    state.treemapScalingMethod = 'linear';
-    updateScalingToggleUI();
-    if (state.view === 'treemap') {
-      renderTreemapView();
-    }
-  });
-  
-  document.getElementById('sqrtScaling').addEventListener('click', () => {
-    state.treemapScalingMethod = 'sqrt';
-    updateScalingToggleUI();
-    if (state.view === 'treemap') {
-      renderTreemapView();
-    }
-  });
-  
-  document.getElementById('logScaling').addEventListener('click', () => {
-    state.treemapScalingMethod = 'log';
-    updateScalingToggleUI();
-    if (state.view === 'treemap') {
-      renderTreemapView();
-    }
-  });
-  
-  document.getElementById('powerScaling').addEventListener('click', () => {
-    state.treemapScalingMethod = 'power';
-    updateScalingToggleUI();
-    if (state.view === 'treemap') {
-      renderTreemapView();
-    }
-  });
-  
   // Add treemap navigation event listener (back button)
   document.addEventListener('keydown', (e) => {
     // Go back on Escape key when in treemap and not at top level
@@ -475,156 +417,21 @@ function setupEventListeners() {
     }
   });
   
-  // Create treemap back button if it doesn't exist
-  if (!document.getElementById('treemapBackBtn')) {
-    const treemapContainer = document.querySelector('.treemap-container');
-    if (treemapContainer) {
-      const backButton = document.createElement('button');
-      backButton.id = 'treemapBackBtn';
-      backButton.className = 'treemap-back-btn hidden';
-      backButton.innerHTML = '&larr; Back';
-      backButton.addEventListener('click', navigateTreemapUp);
-      treemapContainer.parentNode.insertBefore(backButton, treemapContainer);
+  // Track window resize for treemap updates
+  window.addEventListener('resize', () => {
+    if (state.view === 'treemap') {
+      renderTreemapView();
     }
-  } else {
-    document.getElementById('treemapBackBtn').addEventListener('click', navigateTreemapUp);
-  }
+  });
 }
 
 // Navigate up in the treemap hierarchy
 function navigateTreemapUp() {
-  if (state.treemapHistory.length === 0) return;
-  
-  // Pop the last state
-  const previousState = state.treemapHistory.pop();
-  
-  // Restore previous state
-  state.treemapLevel = previousState.level;
-  state.selectedCategory = previousState.category;
-  state.selectedContributor = previousState.contributor;
+  state.treemapLevel = 'category';
+  state.selectedContributor = null;
+  state.selectedCategory = null;
   
   // Re-render the treemap
-  renderTreemapView();
-  
-  // Update back button visibility
-  updateTreemapBackButton();
-}
-
-// Update treemap back button visibility
-function updateTreemapBackButton() {
-  const backBtn = document.getElementById('treemapBackBtn');
-  if (backBtn) {
-    if (state.treemapLevel !== 'category') {
-      backBtn.classList.remove('hidden');
-    } else {
-      backBtn.classList.add('hidden');
-    }
-  }
-}
-
-// Helper function to update the scaling toggle UI
-function updateScalingToggleUI() {
-  document.getElementById('linearScaling').classList.toggle('active', state.treemapScalingMethod === 'linear');
-  document.getElementById('sqrtScaling').classList.toggle('active', state.treemapScalingMethod === 'sqrt');
-  document.getElementById('logScaling').classList.toggle('active', state.treemapScalingMethod === 'log');
-  document.getElementById('powerScaling').classList.toggle('active', state.treemapScalingMethod === 'power');
-  
-  // Update tooltip text
-  document.getElementById('scalingMethodInfo').textContent = getScalingMethodDescription();
-  
-  // Show/hide scaling controls based on view
-  const scalingControls = document.getElementById('scalingControls');
-  if (scalingControls) {
-    scalingControls.style.display = state.view === 'treemap' ? 'flex' : 'none';
-  }
-}
-
-// Get description for current scaling method
-function getScalingMethodDescription() {
-  switch (state.treemapScalingMethod) {
-    case 'linear':
-      return 'Direct proportional sizing';
-    case 'sqrt':
-      return 'Area-proportional sizing';
-    case 'log':
-      return 'Logarithmic compression';
-    case 'power':
-      return 'Power compression (default)';
-    default:
-      return '';
-  }
-}
-
-// Generate category legend
-function generateCategoryLegend() {
-  elements.categoryLegend.innerHTML = '';
-  
-  // Determine which legend to show based on treemap level
-  const isContributorLevel = state.treemapLevel === 'contributor';
-  
-  // Get unique items to show in legend
-  const items = {};
-  
-  if (isContributorLevel) {
-    // For contributor level, show all teams
-    state.data.forEach(feature => {
-      items[feature.team] = true;
-    });
-  } else {
-    // For category level, show all categories
-    state.data.forEach(feature => {
-      items[feature.category] = true;
-    });
-  }
-  
-  // Create legend items
-  Object.keys(items).sort().forEach(item => {
-    const legendItem = document.createElement('div');
-    legendItem.className = 'legend-item';
-    
-    const color = isContributorLevel ? getContributorColor(item) : getCategoryColor(item);
-    
-    const colorSwatch = document.createElement('div');
-    colorSwatch.className = 'legend-color';
-    colorSwatch.style.backgroundColor = color;
-    
-    const itemName = document.createElement('span');
-    itemName.className = 'legend-label';
-    itemName.textContent = item;
-    
-    legendItem.appendChild(colorSwatch);
-    legendItem.appendChild(itemName);
-    
-    // Add click handler for filtering
-    legendItem.addEventListener('click', () => {
-      if (state.view === 'treemap') {
-        if (isContributorLevel) {
-          // Filter by team at contributor level
-          filterTreemapByTeam(item);
-        } else {
-          // Filter by category at category level
-          handleCategoryClick(item);
-        }
-      }
-    });
-    
-    elements.categoryLegend.appendChild(legendItem);
-  });
-}
-
-// Filter treemap by team
-function filterTreemapByTeam(team) {
-  // Push current state to history before changing
-  state.treemapHistory.push({
-    level: state.treemapLevel,
-    category: state.selectedCategory,
-    contributor: state.selectedContributor
-  });
-  
-  // Set filter
-  state.selectedTeam = team;
-  
-  // Re-render treemap with team filter
   renderTreemapView();
 }
 
@@ -729,7 +536,6 @@ function updateUI() {
   // Render appropriate view
   if (state.view === 'treemap') {
     renderTreemapView();
-    updateTreemapBackButton();
   } else if (state.view === 'year') {
     renderYearView();
   } else if (state.view === 'month') {
@@ -738,9 +544,6 @@ function updateUI() {
   
   // Update summary statistics
   renderSummaryStats();
-  
-  // Update scaling toggle visibility
-  updateScalingToggleUI();
   
   // Update category legend based on current treemap level
   generateCategoryLegend();
@@ -760,192 +563,246 @@ function updateViewVisibility() {
   elements.monthlyView.classList.toggle('hidden', state.view !== 'month');
 }
 
-// Apply treemap scaling based on selected method
-function applyTreemapScaling(baseSize) {
-  // For very small values, set a small minimum (smaller for linear mode)
-  const minSize = state.treemapScalingMethod === 'linear' ? 0.005 : 0.01;
-  
-  switch (state.treemapScalingMethod) {
-    case 'linear':
-      // Direct linear scaling - no transformation
-      // When using linear scaling, we want it to be truly proportional
-      return Math.max(minSize, baseSize);
-    
-    case 'sqrt':
-      // Square root scaling - area proportional
-      return Math.max(minSize, Math.sqrt(baseSize));
-    
-    case 'log':
-      // Logarithmic scaling - highly compressed for large ranges
-      // Using log(1+x) to handle small values better
-      return Math.max(minSize, Math.log(1 + baseSize * 20) / Math.log(21));
-    
-    case 'power':
-    default:
-      // Default power scaling (0.7 power provides a good balance)
-      return Math.max(minSize, Math.pow(baseSize, 0.7));
-  }
-}
-
-// Get scale factor based on scaling method
-function getScalingFactor() {
-  switch (state.treemapScalingMethod) {
-    case 'linear': return 1; // No additional scaling for linear - we want direct proportion
-    case 'sqrt': return 30;
-    case 'log': return 50;
-    case 'power': return 25;
-    default: return 25;
-  }
-}
-
-// Render treemap view with scaling options
-function renderTreemapView() {
+// Squarified treemap algorithm
+// Based on the paper "Squarified Treemaps" by Mark Bruls, Kees Huizing, and Jarke J. van Wijk
+function squarifyTreemap(data, container) {
   // Clear container
-  elements.treemapContainer.innerHTML = '';
+  container.innerHTML = '';
   
-  // Set title and breadcrumb
-  let treemapTitle = 'Feature Categories';
-  let breadcrumb = '';
+  // Get container dimensions
+  const containerWidth = container.clientWidth;
+  const containerHeight = container.clientHeight;
   
-  // Determine what data to show based on treemap level
-  let treemapData = [];
-  
-  if (state.treemapLevel === 'category') {
-    // Show all categories
-    treemapData = getCategoryTreemapData();
-    treemapTitle = 'Feature Categories';
-  } else if (state.treemapLevel === 'contributor') {
-    // Show contributors for selected category
-    treemapData = getContributorTreemapData(state.selectedCategory);
-    treemapTitle = `Contributors for ${state.selectedCategory}`;
-    breadcrumb = `Categories / ${state.selectedCategory}`;
-  }
-  
-  // Add treemap title and breadcrumb
-  const titleContainer = document.createElement('div');
-  titleContainer.className = 'treemap-title-container';
-  
-  // Add back button when in drill-down mode
-  if (state.treemapLevel !== 'category') {
-    const backButton = document.createElement('button');
-    backButton.className = 'treemap-back-btn';
-    backButton.innerHTML = '&larr; Back to Categories';
-    backButton.addEventListener('click', navigateTreemapUp);
-    titleContainer.appendChild(backButton);
-  }
-  
-  if (breadcrumb) {
-    const breadcrumbEl = document.createElement('div');
-    breadcrumbEl.className = 'treemap-breadcrumb';
-    breadcrumbEl.textContent = breadcrumb;
-    titleContainer.appendChild(breadcrumbEl);
-  }
-  
-  const title = document.createElement('h3');
+  // Create title for the treemap
+  const title = document.createElement('div');
   title.className = 'treemap-title';
-  title.textContent = treemapTitle;
-  titleContainer.appendChild(title);
+  title.textContent = state.treemapLevel === 'category' ? 'Feature Categories' : 
+                    `Contributors for ${state.selectedCategory}`;
+  container.appendChild(title);
   
-  // Add title before treemap
-  elements.treemapContainer.appendChild(titleContainer);
+  // Add back button if in contributor view
+  if (state.treemapLevel === 'contributor') {
+    const backBtn = document.createElement('button');
+    backBtn.className = 'treemap-back-btn';
+    backBtn.textContent = 'Back to Categories';
+    backBtn.addEventListener('click', navigateTreemapUp);
+    container.appendChild(backBtn);
+  }
   
-  // Create treemap wrapper
-  const treemap = document.createElement('div');
-  treemap.className = 'treemap-grid';
+  // Create treemap container div with specific height for the actual treemap
+  const treemapDiv = document.createElement('div');
+  treemapDiv.className = 'treemap-content';
+  container.appendChild(treemapDiv);
   
-  // Total count for proportion calculations
-  const totalCount = treemapData.reduce((sum, item) => sum + item.count, 0);
+  // Get the actual treemap data
+  const treemapData = state.treemapLevel === 'category' ? 
+    getCategoryTreemapData() : getContributorTreemapData(state.selectedCategory);
   
-  // Scale factor based on selected method
-  const scaleFactor = getScalingFactor();
+  // Apply squarified algorithm
+  const availableHeight = containerHeight - 50; // Adjust for title
+  squarify(treemapData, treemapDiv, 0, 0, containerWidth, availableHeight);
+}
+
+// Squarify algorithm implementation 
+function squarify(items, container, x, y, width, height) {
+  // Make a copy of the items array to avoid modifying the original
+  const sortedItems = [...items].sort((a, b) => b.value - a.value);
   
-  // Create treemap cells with the selected scaling algorithm
-  treemapData.forEach(data => {
-    const { label, count, color, tooltip, metrics } = data;
+  // Calculate the total value
+  const total = sortedItems.reduce((sum, item) => sum + item.value, 0);
+  
+  // Call layout function to start layout process
+  layoutRow(sortedItems, container, x, y, width, height, total);
+}
+
+// Layout items in the container
+function layoutRow(items, container, x, y, width, height, total) {
+  // If no items, return
+  if (items.length === 0) return;
+  
+  // Choose the orientation (horizontal or vertical)
+  // Use the shorter dimension for row
+  const isVertical = width > height;
+  const shortSide = isVertical ? height : width;
+  
+  // Scale factor - how much area represents one unit
+  const scale = (width * height) / total;
+  
+  // Compute row with best aspect ratio
+  const row = [];
+  let remainingItems = [...items];
+  let remainingTotal = total;
+  let rowTotal = 0;
+  
+  // Build a row until aspect ratio worsens
+  let bestAspectRatio = Infinity;
+  
+  while (remainingItems.length > 0) {
+    // Add next item to row
+    const item = remainingItems[0];
+    row.push(item);
+    rowTotal += item.value;
     
-    // Base size is always proportional to count
-    const baseSize = count / totalCount;
+    // Calculate aspect ratio
+    const rowScale = scale * rowTotal;
+    const rowWidth = isVertical ? width : (rowScale / shortSide);
+    const rowHeight = isVertical ? (rowScale / width) : height;
     
-    // Apply scaling transformation
-    const sizeRatio = applyTreemapScaling(baseSize);
+    // Calculate the max/min aspect ratio in the row
+    let minArea = Infinity;
+    let maxArea = 0;
+    let sumOfSquaredAreas = 0;
     
-    // For linear scaling, we use a direct area proportion approach
-    let cellSize;
-    if (state.treemapScalingMethod === 'linear') {
-      // For linear scaling, use direct area proportion
-      // Calculate area as percentage of total and apply to cell
-      cellSize = {
-        // Set explicit width and height for linear scaling to ensure proper proportions
-        width: `${Math.sqrt(baseSize) * 100}%`, 
-        height: `${Math.sqrt(baseSize) * 100}%`,
-        flex: count // Use count directly as flex basis for true linear scaling
-      };
+    for (const rowItem of row) {
+      const itemScale = scale * rowItem.value;
+      const itemWidth = isVertical ? (itemScale / rowHeight) : rowWidth;
+      const itemHeight = isVertical ? rowHeight : (itemScale / rowWidth);
+      const aspect = Math.max(itemWidth / itemHeight, itemHeight / itemWidth);
+      
+      minArea = Math.min(minArea, itemWidth * itemHeight);
+      maxArea = Math.max(maxArea, itemWidth * itemHeight);
+      sumOfSquaredAreas += (itemWidth * itemHeight) * (itemWidth * itemHeight);
+    }
+    
+    // Calculate the current aspect ratio
+    const currentAspectRatio = maxArea / minArea;
+    
+    // If this is the first item, or the aspect ratio improves, continue
+    if (row.length === 1 || currentAspectRatio < bestAspectRatio) {
+      bestAspectRatio = currentAspectRatio;
+      remainingItems.shift();
+      remainingTotal -= item.value;
     } else {
-      // For other scaling methods, use the flex approach
-      cellSize = {
-        flexGrow: sizeRatio * scaleFactor
-      };
+      // Aspect ratio worsened, revert and break
+      row.pop();
+      rowTotal -= item.value;
+      break;
     }
     
-    // Create cell
-    const cell = document.createElement('div');
-    cell.className = 'treemap-cell';
-    cell.style.backgroundColor = color;
-    
-    // Apply sizing style based on scaling method
-    if (state.treemapScalingMethod === 'linear') {
-      cell.style.flexBasis = `${baseSize * 100}%`; // Direct proportion
-      cell.style.flexGrow = baseSize * 100; // Ensure cell grows proportionally
+    // If we've used all items, break
+    if (remainingItems.length === 0) break;
+  }
+  
+  // Layout the current row
+  layoutItems(row, container, x, y, width, height, rowTotal, total, isVertical);
+  
+  // Calculate the new position and dimension for the next row
+  if (remainingItems.length > 0) {
+    if (isVertical) {
+      // If vertical, next row is to the right
+      const rowWidth = rowTotal * width / total;
+      squarify(remainingItems, container, x + rowWidth, y, width - rowWidth, height, remainingTotal);
     } else {
-      cell.style.flexGrow = cellSize.flexGrow;
+      // If horizontal, next row is below
+      const rowHeight = rowTotal * height / total;
+      squarify(remainingItems, container, x, y + rowHeight, width, height - rowHeight, remainingTotal);
+    }
+  }
+}
+
+// Layout items within a row
+function layoutItems(row, container, x, y, width, height, rowTotal, total, isVertical) {
+  // Calculate dimensions for this row
+  let rowWidth, rowHeight;
+  
+  if (isVertical) {
+    // For vertical layout, row spans full height
+    rowWidth = (rowTotal / total) * width;
+    rowHeight = height;
+  } else {
+    // For horizontal layout, row spans full width
+    rowWidth = width;
+    rowHeight = (rowTotal / total) * height;
+  }
+  
+  // Track position within row
+  let currentPosition = 0;
+  
+  // Position items within the row
+  for (const item of row) {
+    let itemWidth, itemHeight, itemX, itemY;
+    
+    if (isVertical) {
+      // For vertical layout, items are stacked vertically
+      itemWidth = rowWidth;
+      itemHeight = (item.value / rowTotal) * rowHeight;
+      itemX = x;
+      itemY = y + currentPosition;
+      currentPosition += itemHeight;
+    } else {
+      // For horizontal layout, items are arranged horizontally
+      itemWidth = (item.value / rowTotal) * rowWidth;
+      itemHeight = rowHeight;
+      itemX = x + currentPosition;
+      itemY = y;
+      currentPosition += itemWidth;
     }
     
-    // Add label
-    const labelElement = document.createElement('div');
-    labelElement.className = 'treemap-label';
-    labelElement.innerHTML = `<div>${label}</div><div>${count}</div>`;
+    // Create the cell
+    createTreemapCell(item, container, itemX, itemY, itemWidth, itemHeight);
+  }
+}
+
+// Create an individual treemap cell
+function createTreemapCell(item, container, x, y, width, height) {
+  const cell = document.createElement('div');
+  cell.className = 'treemap-cell';
+  cell.style.position = 'absolute';
+  cell.style.left = `${x}px`;
+  cell.style.top = `${y}px`;
+  cell.style.width = `${width}px`;
+  cell.style.height = `${height}px`;
+  cell.style.backgroundColor = item.color;
+  
+  // Add tooltip for hover information
+  cell.setAttribute('title', `${item.label}: ${item.value}`);
+  
+  // Check if cell is large enough to fit text
+  const isCellLarge = width > 60 && height > 40;
+  
+  if (isCellLarge) {
+    // Add text for label and value
+    const label = document.createElement('div');
+    label.className = 'treemap-label';
     
-    // Add metrics badges if available
-    if (metrics) {
-      const metricsBadges = document.createElement('div');
-      metricsBadges.className = 'treemap-metrics';
-      
-      if (metrics.bugs !== undefined) {
-        const bugBadge = document.createElement('span');
-        bugBadge.className = 'metric-badge bugs';
-        bugBadge.innerHTML = `<span class="metric-icon">🐞</span> ${metrics.bugs}`;
-        metricsBadges.appendChild(bugBadge);
-      }
-      
-      if (metrics.avgTime !== undefined) {
-        const timeBadge = document.createElement('span');
-        timeBadge.className = 'metric-badge time';
-        timeBadge.innerHTML = `<span class="metric-icon">⏱️</span> ${metrics.avgTime}d`;
-        metricsBadges.appendChild(timeBadge);
-      }
-      
-      labelElement.appendChild(metricsBadges);
+    // Create label text
+    const labelText = document.createElement('div');
+    labelText.className = 'treemap-label-text';
+    labelText.textContent = item.label;
+    
+    // Create value text
+    const valueText = document.createElement('div');
+    valueText.className = 'treemap-value-text';
+    valueText.textContent = item.value;
+    
+    // Add label and value to cell
+    label.appendChild(labelText);
+    label.appendChild(valueText);
+    cell.appendChild(label);
+  }
+  
+  // Add click handler
+  cell.addEventListener('click', () => {
+    if (state.treemapLevel === 'category') {
+      handleCategoryClick(item.label);
+    } else if (state.treemapLevel === 'contributor') {
+      handleContributorClick(item.label);
     }
-    
-    cell.appendChild(labelElement);
-    
-    // Add tooltip with extended information
-    cell.setAttribute('data-tooltip', tooltip);
-    cell.title = tooltip.split('\n')[0]; // Basic tooltip for browsers without custom tooltip support
-    
-    // Add click handler
-    cell.addEventListener('click', () => {
-      if (state.treemapLevel === 'category') {
-        handleCategoryClick(label);
-      } else if (state.treemapLevel === 'contributor') {
-        handleContributorClick(label);
-      }
-    });
-    
-    treemap.appendChild(cell);
   });
   
-  elements.treemapContainer.appendChild(treemap);
+  container.appendChild(cell);
+}
+
+// Render treemap view
+function renderTreemapView() {
+  // Clear container first
+  elements.treemapContainer.innerHTML = '';
+  
+  // Render the squarified treemap
+  squarifyTreemap(
+    state.treemapLevel === 'category' ? getCategoryTreemapData() : getContributorTreemapData(state.selectedCategory),
+    elements.treemapContainer
+  );
   
   // Update category details if something is selected
   if (state.treemapLevel === 'category' && state.selectedCategory) {
@@ -961,50 +818,18 @@ function renderTreemapView() {
 function getCategoryTreemapData() {
   // Count features by category
   const categoryCount = {};
-  const categoryBugs = {};
-  const categoryTimes = {};
   
   state.data.forEach(feature => {
     const category = feature.category || 'Uncategorized';
-    
-    // Count features
     categoryCount[category] = (categoryCount[category] || 0) + 1;
-    
-    // Sum bugs
-    categoryBugs[category] = (categoryBugs[category] || 0) + feature.bugCount;
-    
-    // Sum time to release
-    if (!categoryTimes[category]) {
-      categoryTimes[category] = [];
-    }
-    categoryTimes[category].push(feature.timeToRelease);
-  });
-  
-  // Calculate average time to release
-  const categoryAvgTimes = {};
-  Object.keys(categoryTimes).forEach(category => {
-    const times = categoryTimes[category];
-    categoryAvgTimes[category] = Math.round(times.reduce((sum, time) => sum + time, 0) / times.length);
   });
   
   // Convert to array for treemap
-  return Object.entries(categoryCount).map(([category, count]) => {
-    const color = getCategoryColor(category);
-    const bugs = categoryBugs[category] || 0;
-    const avgTime = categoryAvgTimes[category] || 0;
-    const bugRatio = count > 0 ? (bugs / count).toFixed(1) : '0';
-    
-    return {
-      label: category,
-      count,
-      color,
-      metrics: {
-        bugs,
-        avgTime
-      },
-      tooltip: `${category}: ${count} features\n🐞 ${bugs} bugs (${bugRatio} per feature)\n⏱️ ${avgTime} days avg time to release`
-    };
-  }).sort((a, b) => b.count - a.count);
+  return Object.entries(categoryCount).map(([category, count]) => ({
+    label: category,
+    value: count,
+    color: getCategoryColor(category)
+  }));
 }
 
 // Get data for contributor treemap (when a category is selected)
@@ -1014,90 +839,38 @@ function getContributorTreemapData(selectedCategory) {
     feature => feature.category === selectedCategory
   );
   
-  // Count features by contributor (team)
-  const contributorCount = {};
-  const contributorBugs = {};
-  const contributorTimes = {};
+  // Count features by team
+  const teamCount = {};
   
   categoryFeatures.forEach(feature => {
-    const contributor = feature.team; // Using team as contributor for drill-down
-    
-    // Count features
-    contributorCount[contributor] = (contributorCount[contributor] || 0) + 1;
-    
-    // Sum bugs
-    contributorBugs[contributor] = (contributorBugs[contributor] || 0) + feature.bugCount;
-    
-    // Sum time to release
-    if (!contributorTimes[contributor]) {
-      contributorTimes[contributor] = [];
-    }
-    contributorTimes[contributor].push(feature.timeToRelease);
-  });
-  
-  // Calculate average time to release
-  const contributorAvgTimes = {};
-  Object.keys(contributorTimes).forEach(contributor => {
-    const times = contributorTimes[contributor];
-    contributorAvgTimes[contributor] = Math.round(times.reduce((sum, time) => sum + time, 0) / times.length);
+    const team = feature.team;
+    teamCount[team] = (teamCount[team] || 0) + 1;
   });
   
   // Convert to array for treemap
-  return Object.entries(contributorCount).map(([contributor, count]) => {
-    const color = getContributorColor(contributor);
-    const bugs = contributorBugs[contributor] || 0;
-    const avgTime = contributorAvgTimes[contributor] || 0;
-    const bugRatio = count > 0 ? (bugs / count).toFixed(1) : '0';
-    
-    return {
-      label: contributor,
-      count,
-      color,
-      metrics: {
-        bugs,
-        avgTime
-      },
-      tooltip: `${contributor}: ${count} features\n🐞 ${bugs} bugs (${bugRatio} per feature)\n⏱️ ${avgTime} days avg time to release`
-    };
-  }).sort((a, b) => b.count - a.count);
+  return Object.entries(teamCount).map(([team, count]) => ({
+    label: team,
+    value: count,
+    color: getCategoryColor(team) // Reuse category colors for teams
+  }));
 }
 
 // Handle category click in treemap (for drill-down)
 function handleCategoryClick(category) {
   if (state.treemapLevel === 'category') {
-    if (state.selectedCategory === category) {
-      // If clicking the same category, toggle details panel
-      if (elements.categoryDetails.classList.contains('hidden')) {
-        state.selectedFeatures = state.data.filter(
-          feature => feature.category === category
-        );
-        renderCategoryDetails();
-      } else {
-        elements.categoryDetails.classList.add('hidden');
-      }
-    } else {
-      // If clicking a different category, save state and drill down
-      state.treemapHistory.push({
-        level: state.treemapLevel,
-        category: state.selectedCategory,
-        contributor: state.selectedContributor
-      });
-      
-      // Update state for drill-down
-      state.selectedCategory = category;
-      state.treemapLevel = 'contributor';
-      state.selectedContributor = null;
-      state.selectedFeatures = state.data.filter(
-        feature => feature.category === category
-      );
-      
-      // Hide details panel during drill-down
-      elements.categoryDetails.classList.add('hidden');
-      
-      // Render the contributor-level treemap
-      renderTreemapView();
-      updateTreemapBackButton();
-    }
+    // Update state for drill-down
+    state.selectedCategory = category;
+    state.treemapLevel = 'contributor';
+    state.selectedContributor = null;
+    state.selectedFeatures = state.data.filter(
+      feature => feature.category === category
+    );
+    
+    // Hide details panel during drill-down
+    elements.categoryDetails.classList.add('hidden');
+    
+    // Render the contributor-level treemap
+    renderTreemapView();
   }
 }
 
@@ -1168,7 +941,7 @@ function renderCategoryDetails() {
           ${state.selectedFeatures.length} feature${state.selectedFeatures.length !== 1 ? 's' : ''}
         </span>
         <button id="drillDownBtn" class="drill-down-btn">
-          <span class="drill-icon">&#128269;</span> Show Contributors
+          Show Contributors
         </button>
       </div>
     </div>
@@ -1197,13 +970,6 @@ function renderCategoryDetails() {
   
   // Add drill-down button event listener
   document.getElementById('drillDownBtn').addEventListener('click', () => {
-    // Save state for back navigation
-    state.treemapHistory.push({
-      level: state.treemapLevel,
-      category: state.selectedCategory,
-      contributor: state.selectedContributor
-    });
-    
     // Change to contributor view
     state.treemapLevel = 'contributor';
     state.selectedContributor = null;
@@ -1213,7 +979,6 @@ function renderCategoryDetails() {
     
     // Render the contributor-level treemap
     renderTreemapView();
-    updateTreemapBackButton();
   });
   
   // Get container for feature items
@@ -1291,7 +1056,7 @@ function renderContributorDetails() {
   const metrics = calculateCategoryMetrics(state.selectedFeatures);
   
   // Get contributor color
-  const contributorColor = getContributorColor(state.selectedContributor);
+  const contributorColor = getCategoryColor(state.selectedContributor);
   
   // Create contributor details
   elements.categoryDetails.innerHTML = `
@@ -1383,6 +1148,72 @@ function renderContributorDetails() {
       featuresContainer.appendChild(featureItem);
     });
   }
+}
+
+// Generate category legend
+function generateCategoryLegend() {
+  elements.categoryLegend.innerHTML = '';
+  
+  // Determine which legend to show based on treemap level
+  const isContributorLevel = state.treemapLevel === 'contributor';
+  
+  // Get unique items to show in legend
+  const items = {};
+  
+  if (isContributorLevel) {
+    // For contributor level, show all teams
+    state.data.forEach(feature => {
+      items[feature.team] = true;
+    });
+  } else {
+    // For category level, show all categories
+    state.data.forEach(feature => {
+      items[feature.category] = true;
+    });
+  }
+  
+  // Create legend items
+  Object.keys(items).sort().forEach(item => {
+    const legendItem = document.createElement('div');
+    legendItem.className = 'legend-item';
+    
+    const color = isContributorLevel ? getCategoryColor(item) : getCategoryColor(item);
+    
+    const colorSwatch = document.createElement('div');
+    colorSwatch.className = 'legend-color';
+    colorSwatch.style.backgroundColor = color;
+    
+    const itemName = document.createElement('span');
+    itemName.className = 'legend-label';
+    itemName.textContent = item;
+    
+    legendItem.appendChild(colorSwatch);
+    legendItem.appendChild(itemName);
+    
+    // Add click handler for filtering
+    legendItem.addEventListener('click', () => {
+      if (state.view === 'treemap') {
+        if (isContributorLevel) {
+          // Filter by team at contributor level
+          filterTreemapByTeam(item);
+        } else {
+          // Filter by category at category level
+          handleCategoryClick(item);
+        }
+      }
+    });
+    
+    elements.categoryLegend.appendChild(legendItem);
+  });
+}
+
+// Filter treemap by team
+function filterTreemapByTeam(team) {
+  // Set filter
+  state.selectedTeam = team;
+  
+  // Re-render treemap with team filter
+  renderTreemapView();
 }
 
 // Render year view
