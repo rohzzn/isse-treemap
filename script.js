@@ -10,7 +10,9 @@ const state = {
   selectedContributor: null, // Added for drill-down
   selectedFeatures: [],
   yearRange: { min: 2022, max: 2024 },
-  treemapLevel: 'category', // 'category' or 'contributor' - tracks current drill-down level
+  treemapLevel: 'category', // 'category', 'contributor', 'quarter' or 'quarter-category'
+  treemapMode: 'category', // 'category' or 'quarter'
+  selectedQuarter: null, // For quarter drill-down
   treemapHistory: [] // Stack to track treemap navigation history
 };
 
@@ -82,6 +84,8 @@ const elements = {
   treemapContainer: document.getElementById('treemapContainer'),
   categoryDetails: document.getElementById('categoryDetails'),
   categoryLegend: document.getElementById('categoryLegend'),
+  treemapToggleGroup: document.getElementById('treemapToggleGroup'),
+  treemapModeToggle: document.getElementById('treemapModeToggle'),
   
   // Month view
   monthlyView: document.getElementById('monthlyView'),
@@ -364,14 +368,18 @@ function setupEventListeners() {
   // View switchers
   elements.treemapViewBtn.addEventListener('click', () => {
     state.view = 'treemap';
-    state.treemapLevel = 'category'; // Reset to top level when switching to treemap
+    state.treemapLevel = state.treemapMode; // Reset to top level when switching to treemap
     state.selectedDay = null;
     state.selectedMonthIndex = null;
     state.selectedFeatures = [];
     state.selectedCategory = null;
     state.selectedContributor = null;
+    state.selectedQuarter = null;
     state.treemapHistory = [];
     updateUI();
+    
+    // Show treemap toggle
+    showTreemapToggle(true);
   });
   
   elements.yearViewBtn.addEventListener('click', () => {
@@ -379,8 +387,12 @@ function setupEventListeners() {
     state.selectedMonthIndex = null;
     state.selectedCategory = null;
     state.selectedContributor = null;
+    state.selectedQuarter = null;
     state.selectedFeatures = [];
     updateUI();
+    
+    // Hide treemap toggle
+    showTreemapToggle(false);
   });
   
   elements.backToYearBtn.addEventListener('click', () => {
@@ -412,9 +424,22 @@ function setupEventListeners() {
   // Add treemap navigation event listener (back button)
   document.addEventListener('keydown', (e) => {
     // Go back on Escape key when in treemap and not at top level
-    if (e.key === 'Escape' && state.view === 'treemap' && state.treemapLevel !== 'category') {
+    if (e.key === 'Escape' && state.view === 'treemap' && 
+        (state.treemapLevel !== 'category' && state.treemapLevel !== 'quarter')) {
       navigateTreemapUp();
     }
+  });
+  
+  // Treemap mode toggle
+  elements.treemapModeToggle.addEventListener('change', (e) => {
+    state.treemapMode = e.target.checked ? 'quarter' : 'category';
+    state.treemapLevel = state.treemapMode; // Reset to top level
+    state.selectedCategory = null;
+    state.selectedContributor = null;
+    state.selectedQuarter = null;
+    state.selectedFeatures = [];
+    state.treemapHistory = [];
+    renderTreemapView();
   });
   
   // Track window resize for treemap updates
@@ -423,13 +448,35 @@ function setupEventListeners() {
       renderTreemapView();
     }
   });
+  
+  // Initialize treemap toggle visibility
+  showTreemapToggle(state.view === 'treemap');
+}
+
+// Show/hide treemap toggle
+function showTreemapToggle(show) {
+  if (show) {
+    elements.treemapToggleGroup.classList.add('visible');
+  } else {
+    elements.treemapToggleGroup.classList.remove('visible');
+  }
 }
 
 // Navigate up in the treemap hierarchy
 function navigateTreemapUp() {
-  state.treemapLevel = 'category';
-  state.selectedContributor = null;
-  state.selectedCategory = null;
+  if (state.treemapMode === 'category') {
+    if (state.treemapLevel === 'contributor') {
+      state.treemapLevel = 'category';
+      state.selectedContributor = null;
+      state.selectedCategory = null;
+    }
+  } else if (state.treemapMode === 'quarter') {
+    if (state.treemapLevel === 'quarter-category') {
+      state.treemapLevel = 'quarter';
+      state.selectedCategory = null;
+      state.selectedQuarter = null;
+    }
+  }
   
   // Re-render the treemap
   renderTreemapView();
@@ -573,18 +620,37 @@ function squarifyTreemap(data, container) {
   const containerWidth = container.clientWidth;
   const containerHeight = container.clientHeight;
   
+  // Determine treemap title based on current mode and level
+  let treemapTitle = '';
+  let backButtonNeeded = false;
+  
+  if (state.treemapMode === 'category') {
+    if (state.treemapLevel === 'category') {
+      treemapTitle = 'Feature Categories';
+    } else if (state.treemapLevel === 'contributor') {
+      treemapTitle = `Contributors for ${state.selectedCategory}`;
+      backButtonNeeded = true;
+    }
+  } else if (state.treemapMode === 'quarter') {
+    if (state.treemapLevel === 'quarter') {
+      treemapTitle = 'Features by Quarter';
+    } else if (state.treemapLevel === 'quarter-category') {
+      treemapTitle = `Categories in ${state.selectedQuarter}`;
+      backButtonNeeded = true;
+    }
+  }
+  
   // Create title for the treemap
   const title = document.createElement('div');
   title.className = 'treemap-title';
-  title.textContent = state.treemapLevel === 'category' ? 'Feature Categories' : 
-                    `Contributors for ${state.selectedCategory}`;
+  title.textContent = treemapTitle;
   container.appendChild(title);
   
-  // Add back button if in contributor view
-  if (state.treemapLevel === 'contributor') {
+  // Add back button if needed
+  if (backButtonNeeded) {
     const backBtn = document.createElement('button');
     backBtn.className = 'treemap-back-btn';
-    backBtn.textContent = 'Back to Categories';
+    backBtn.textContent = state.treemapMode === 'category' ? 'Back to Categories' : 'Back to Quarters';
     backBtn.addEventListener('click', navigateTreemapUp);
     container.appendChild(backBtn);
   }
@@ -594,13 +660,9 @@ function squarifyTreemap(data, container) {
   treemapDiv.className = 'treemap-content';
   container.appendChild(treemapDiv);
   
-  // Get the actual treemap data
-  const treemapData = state.treemapLevel === 'category' ? 
-    getCategoryTreemapData() : getContributorTreemapData(state.selectedCategory);
-  
   // Apply squarified algorithm
   const availableHeight = containerHeight - 50; // Adjust for title
-  squarify(treemapData, treemapDiv, 0, 0, containerWidth, availableHeight);
+  squarify(data, treemapDiv, 0, 0, containerWidth, availableHeight);
 }
 
 // Squarify algorithm implementation 
@@ -781,12 +843,20 @@ function createTreemapCell(item, container, x, y, width, height) {
     cell.appendChild(label);
   }
   
-  // Add click handler
+  // Add click handler based on current treemap mode and level
   cell.addEventListener('click', () => {
-    if (state.treemapLevel === 'category') {
-      handleCategoryClick(item.label);
-    } else if (state.treemapLevel === 'contributor') {
-      handleContributorClick(item.label);
+    if (state.treemapMode === 'category') {
+      if (state.treemapLevel === 'category') {
+        handleCategoryClick(item.label);
+      } else if (state.treemapLevel === 'contributor') {
+        handleContributorClick(item.label);
+      }
+    } else if (state.treemapMode === 'quarter') {
+      if (state.treemapLevel === 'quarter') {
+        handleQuarterClick(item.label);
+      } else if (state.treemapLevel === 'quarter-category') {
+        handleQuarterCategoryClick(item.label);
+      }
     }
   });
   
@@ -798,19 +868,45 @@ function renderTreemapView() {
   // Clear container first
   elements.treemapContainer.innerHTML = '';
   
-  // Render the squarified treemap
-  squarifyTreemap(
-    state.treemapLevel === 'category' ? getCategoryTreemapData() : getContributorTreemapData(state.selectedCategory),
-    elements.treemapContainer
-  );
+  // Determine what data to use based on treemap level and mode
+  let treemapData;
   
-  // Update category details if something is selected
-  if (state.treemapLevel === 'category' && state.selectedCategory) {
-    renderCategoryDetails();
-  } else if (state.treemapLevel === 'contributor' && state.selectedContributor) {
-    renderContributorDetails();
+  if (state.treemapMode === 'category') {
+    // Category mode
+    if (state.treemapLevel === 'category') {
+      treemapData = getCategoryTreemapData();
+    } else if (state.treemapLevel === 'contributor') {
+      treemapData = getContributorTreemapData(state.selectedCategory);
+    }
   } else {
-    elements.categoryDetails.classList.add('hidden');
+    // Quarter mode
+    if (state.treemapLevel === 'quarter') {
+      treemapData = getQuarterTreemapData();
+    } else if (state.treemapLevel === 'quarter-category') {
+      treemapData = getQuarterCategoryTreemapData(state.selectedQuarter);
+    }
+  }
+  
+  // Render the squarified treemap
+  squarifyTreemap(treemapData, elements.treemapContainer);
+  
+  // Update details based on the current state
+  if (state.treemapMode === 'category') {
+    if (state.treemapLevel === 'category' && state.selectedCategory) {
+      renderCategoryDetails();
+    } else if (state.treemapLevel === 'contributor' && state.selectedContributor) {
+      renderContributorDetails();
+    } else {
+      elements.categoryDetails.classList.add('hidden');
+    }
+  } else {
+    if (state.treemapLevel === 'quarter' && state.selectedQuarter) {
+      renderQuarterDetails();
+    } else if (state.treemapLevel === 'quarter-category' && state.selectedCategory) {
+      renderQuarterCategoryDetails();
+    } else {
+      elements.categoryDetails.classList.add('hidden');
+    }
   }
 }
 
@@ -1154,14 +1250,44 @@ function renderContributorDetails() {
 function generateCategoryLegend() {
   elements.categoryLegend.innerHTML = '';
   
-  // Determine which legend to show based on treemap level
-  const isContributorLevel = state.treemapLevel === 'contributor';
+  // Determine which legend to show based on treemap mode and level
+  const isQuarterMode = state.treemapMode === 'quarter';
+  
+  if (isQuarterMode && state.treemapLevel === 'quarter') {
+    // For quarter mode at top level, show quarter legend
+    const quarterColors = {
+      'Q1': '#4A90E2', // Blue
+      'Q2': '#43A047', // Green
+      'Q3': '#F5A623', // Orange
+      'Q4': '#EF5350'  // Red
+    };
+    
+    Object.entries(quarterColors).forEach(([quarter, color]) => {
+      const legendItem = document.createElement('div');
+      legendItem.className = 'legend-item';
+      
+      const colorSwatch = document.createElement('div');
+      colorSwatch.className = 'legend-color';
+      colorSwatch.style.backgroundColor = color;
+      
+      const itemName = document.createElement('span');
+      itemName.className = 'legend-label';
+      itemName.textContent = quarter;
+      
+      legendItem.appendChild(colorSwatch);
+      legendItem.appendChild(itemName);
+      
+      elements.categoryLegend.appendChild(legendItem);
+    });
+    
+    return;
+  }
   
   // Get unique items to show in legend
   const items = {};
   
-  if (isContributorLevel) {
-    // For contributor level, show all teams
+  if (state.treemapLevel === 'contributor' || state.treemapLevel === 'quarter-category') {
+    // For contributor level or quarter-category level, show all teams
     state.data.forEach(feature => {
       items[feature.team] = true;
     });
@@ -1177,7 +1303,7 @@ function generateCategoryLegend() {
     const legendItem = document.createElement('div');
     legendItem.className = 'legend-item';
     
-    const color = isContributorLevel ? getCategoryColor(item) : getCategoryColor(item);
+    const color = getCategoryColor(item);
     
     const colorSwatch = document.createElement('div');
     colorSwatch.className = 'legend-color';
@@ -1190,18 +1316,25 @@ function generateCategoryLegend() {
     legendItem.appendChild(colorSwatch);
     legendItem.appendChild(itemName);
     
-    // Add click handler for filtering
-    legendItem.addEventListener('click', () => {
-      if (state.view === 'treemap') {
-        if (isContributorLevel) {
-          // Filter by team at contributor level
-          filterTreemapByTeam(item);
-        } else {
-          // Filter by category at category level
-          handleCategoryClick(item);
+    // Add click handler for filtering (only in treemap view)
+    if (state.view === 'treemap') {
+      legendItem.addEventListener('click', () => {
+        if (state.treemapMode === 'category') {
+          if (state.treemapLevel === 'contributor') {
+            // Filter by team at contributor level
+            filterTreemapByTeam(item);
+          } else if (state.treemapLevel === 'category') {
+            // Filter by category at category level
+            handleCategoryClick(item);
+          }
+        } else if (state.treemapMode === 'quarter') {
+          if (state.treemapLevel === 'quarter-category') {
+            // Filter by category at quarter-category level
+            handleQuarterCategoryClick(item);
+          }
         }
-      }
-    });
+      });
+    }
     
     elements.categoryLegend.appendChild(legendItem);
   });
@@ -1771,6 +1904,363 @@ function hexToRgb(hex) {
   const b = parseInt(hex.substring(4, 6), 16);
   
   return `${r}, ${g}, ${b}`;
+}
+
+// Get data for quarter treemap
+function getQuarterTreemapData() {
+  // Group features by quarter and year
+  const quarterCount = {};
+  
+  state.data.forEach(feature => {
+    const quarter = Math.floor(feature.month / 3) + 1;
+    const year = feature.year;
+    const key = `${year} Q${quarter}`;
+    
+    quarterCount[key] = (quarterCount[key] || 0) + 1;
+  });
+  
+  // Assign colors for quarters
+  const quarterColors = {
+    'Q1': '#4A90E2', // Blue
+    'Q2': '#43A047', // Green
+    'Q3': '#F5A623', // Orange
+    'Q4': '#EF5350'  // Red
+  };
+  
+  // Convert to array for treemap
+  return Object.entries(quarterCount).map(([quarterKey, count]) => {
+    // Extract quarter from the key (e.g. '2022 Q1' -> 'Q1')
+    const quarterPart = quarterKey.split(' ')[1];
+    
+    return {
+      label: quarterKey,
+      value: count,
+      color: quarterColors[quarterPart] || '#78909C', // Default color if not found
+      quarter: quarterPart,
+      year: quarterKey.split(' ')[0]
+    };
+  });
+}
+
+// Get data for quarter-category treemap (when a quarter is selected)
+function getQuarterCategoryTreemapData(selectedQuarter) {
+  const [year, quarter] = selectedQuarter.split(' ');
+  const quarterNum = parseInt(quarter.substring(1)) - 1; // Convert Q1 to 0, Q2 to 1, etc.
+  
+  // Calculate month range for the quarter
+  const startMonth = quarterNum * 3;
+  const endMonth = startMonth + 2;
+  
+  // Filter features for the selected quarter
+  const quarterFeatures = state.data.filter(feature => {
+    return feature.year.toString() === year && 
+           feature.month >= startMonth && 
+           feature.month <= endMonth;
+  });
+  
+  // Count features by category
+  const categoryCount = {};
+  
+  quarterFeatures.forEach(feature => {
+    const category = feature.category || 'Uncategorized';
+    categoryCount[category] = (categoryCount[category] || 0) + 1;
+  });
+  
+  // Convert to array for treemap
+  return Object.entries(categoryCount).map(([category, count]) => ({
+    label: category,
+    value: count,
+    color: getCategoryColor(category),
+    quarter: quarter,
+    year: year
+  }));
+}
+
+// Handle quarter click in treemap (for drill-down)
+function handleQuarterClick(quarter) {
+  if (state.treemapLevel === 'quarter') {
+    // Update state for drill-down
+    state.selectedQuarter = quarter;
+    state.treemapLevel = 'quarter-category';
+    state.selectedCategory = null;
+    
+    // Get quarter features and update selected features
+    const [year, quarterPart] = quarter.split(' ');
+    const quarterNum = parseInt(quarterPart.substring(1)) - 1;
+    const startMonth = quarterNum * 3;
+    const endMonth = startMonth + 2;
+    
+    state.selectedFeatures = state.data.filter(feature => {
+      return feature.year.toString() === year && 
+             feature.month >= startMonth && 
+             feature.month <= endMonth;
+    });
+    
+    // Hide details panel during drill-down
+    elements.categoryDetails.classList.add('hidden');
+    
+    // Render the quarter-category treemap
+    renderTreemapView();
+  }
+}
+
+// Handle category click in quarter-category view
+function handleQuarterCategoryClick(category) {
+  if (state.treemapLevel === 'quarter-category') {
+    // Get quarter features
+    const [year, quarter] = state.selectedQuarter.split(' ');
+    const quarterNum = parseInt(quarter.substring(1)) - 1;
+    const startMonth = quarterNum * 3;
+    const endMonth = startMonth + 2;
+    
+    // Filter features by category and quarter
+    state.selectedCategory = category;
+    state.selectedFeatures = state.data.filter(feature => {
+      return feature.year.toString() === year && 
+             feature.month >= startMonth && 
+             feature.month <= endMonth &&
+             feature.category === category;
+    });
+    
+    // Render quarter-category details
+    renderQuarterCategoryDetails();
+  }
+}
+
+// Render quarter details panel
+function renderQuarterDetails() {
+  // Update container visibility
+  elements.categoryDetails.classList.remove('hidden');
+  
+  // Parse quarter info
+  const [year, quarter] = state.selectedQuarter.split(' ');
+  const quarterNum = parseInt(quarter.substring(1)) - 1;
+  const startMonth = quarterNum * 3;
+  const endMonth = startMonth + 2;
+  
+  // Quarter colors
+  const quarterColors = {
+    'Q1': '#4A90E2', // Blue
+    'Q2': '#43A047', // Green
+    'Q3': '#F5A623', // Orange
+    'Q4': '#EF5350'  // Red
+  };
+  
+  // Calculate quarter metrics
+  const metrics = calculateCategoryMetrics(state.selectedFeatures);
+  
+  // Create quarter details
+  elements.categoryDetails.innerHTML = `
+    <div class="category-details-header">
+      <h4 class="category-title" style="color: ${quarterColors[quarter] || '#78909C'}">
+        ${state.selectedQuarter} Features
+      </h4>
+      <div class="category-actions">
+        <span class="category-count">
+          ${state.selectedFeatures.length} feature${state.selectedFeatures.length !== 1 ? 's' : ''}
+        </span>
+        <button id="drillDownBtn" class="drill-down-btn">
+          Show Categories
+        </button>
+      </div>
+    </div>
+    
+    <div class="category-metrics">
+      <div class="metric-card">
+        <div class="metric-card-label">Months</div>
+        <div class="metric-card-value">${monthNames[startMonth]} - ${monthNames[endMonth]}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Top Category</div>
+        <div class="metric-card-value">${getTopCategoryForQuarter(state.selectedQuarter)}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Avg Features/Month</div>
+        <div class="metric-card-value">${(state.selectedFeatures.length / 3).toFixed(1)}</div>
+      </div>
+    </div>
+    
+    <div class="category-features-list" id="quarterFeatures">
+      ${state.selectedFeatures.length > 0 ? '' : '<p class="no-features">No features found for this quarter</p>'}
+    </div>
+  `;
+  
+  // Add drill-down button event listener
+  document.getElementById('drillDownBtn').addEventListener('click', () => {
+    // Change to quarter-category view
+    state.treemapLevel = 'quarter-category';
+    state.selectedCategory = null;
+    
+    // Hide details panel during drill-down
+    elements.categoryDetails.classList.add('hidden');
+    
+    // Render the quarter-category treemap
+    renderTreemapView();
+  });
+  
+  // Get container for feature items
+  const featuresContainer = document.getElementById('quarterFeatures');
+  
+  if (featuresContainer && state.selectedFeatures.length > 0) {
+    // Sort features by date (newest first)
+    const sortedFeatures = [...state.selectedFeatures].sort(
+      (a, b) => new Date(b.date) - new Date(a.date)
+    );
+    
+    // Add feature items
+    renderFeatureItems(sortedFeatures, featuresContainer);
+  }
+}
+
+// Render quarter-category details panel
+function renderQuarterCategoryDetails() {
+  // Update container visibility
+  elements.categoryDetails.classList.remove('hidden');
+  
+  // Calculate metrics
+  const metrics = calculateCategoryMetrics(state.selectedFeatures);
+  
+  // Get category color
+  const categoryColor = getCategoryColor(state.selectedCategory);
+  
+  // Create category details
+  elements.categoryDetails.innerHTML = `
+    <div class="category-details-header">
+      <h4 class="category-title" style="color: ${categoryColor}">
+        ${state.selectedCategory} in ${state.selectedQuarter}
+      </h4>
+      <span class="category-count">
+        ${state.selectedFeatures.length} feature${state.selectedFeatures.length !== 1 ? 's' : ''}
+      </span>
+    </div>
+    
+    <div class="category-metrics">
+      <div class="metric-card">
+        <div class="metric-card-label">Avg Time to Release</div>
+        <div class="metric-card-value">${metrics.avgTimeToRelease} days</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Total Bugs</div>
+        <div class="metric-card-value">${metrics.totalBugs} (${metrics.bugRatio}/feature)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Top Contributors</div>
+        <div class="metric-card-value">
+          ${metrics.topContributors.map(([team, count]) => `${team} (${count})`).join(', ')}
+        </div>
+      </div>
+    </div>
+    
+    <div class="category-features-list" id="quarterCategoryFeatures">
+      ${state.selectedFeatures.length > 0 ? '' : '<p class="no-features">No features found</p>'}
+    </div>
+  `;
+  
+  // Get container for feature items
+  const featuresContainer = document.getElementById('quarterCategoryFeatures');
+  
+  if (featuresContainer && state.selectedFeatures.length > 0) {
+    // Sort features by date (newest first)
+    const sortedFeatures = [...state.selectedFeatures].sort(
+      (a, b) => new Date(b.date) - new Date(a.date)
+    );
+    
+    // Add feature items
+    renderFeatureItems(sortedFeatures, featuresContainer);
+  }
+}
+
+// Helper function to find the top category for a quarter
+function getTopCategoryForQuarter(quarterKey) {
+  const [year, quarter] = quarterKey.split(' ');
+  const quarterNum = parseInt(quarter.substring(1)) - 1;
+  const startMonth = quarterNum * 3;
+  const endMonth = startMonth + 2;
+  
+  // Filter features for the quarter
+  const features = state.data.filter(feature => {
+    return feature.year.toString() === year && 
+           feature.month >= startMonth && 
+           feature.month <= endMonth;
+  });
+  
+  // Count by category
+  const categoryCount = {};
+  features.forEach(feature => {
+    const category = feature.category || 'Uncategorized';
+    categoryCount[category] = (categoryCount[category] || 0) + 1;
+  });
+  
+  // Find category with max count
+  let maxCount = 0;
+  let topCategory = 'None';
+  
+  Object.entries(categoryCount).forEach(([category, count]) => {
+    if (count > maxCount) {
+      maxCount = count;
+      topCategory = category;
+    }
+  });
+  
+  return topCategory;
+}
+
+// Helper function to render feature items
+function renderFeatureItems(features, container) {
+  features.forEach(feature => {
+    const featureItem = document.createElement('div');
+    featureItem.className = 'feature-item';
+    
+    const featureHeader = document.createElement('div');
+    featureHeader.className = 'feature-header';
+    
+    // Category indicator
+    const categoryTag = document.createElement('span');
+    categoryTag.className = 'feature-category';
+    categoryTag.textContent = feature.category;
+    const categoryColor = getCategoryColor(feature.category);
+    categoryTag.style.backgroundColor = `${categoryColor}20`; // 20% opacity
+    categoryTag.style.color = categoryColor;
+    featureHeader.appendChild(categoryTag);
+    
+    // Impact indicator
+    const impactIndicator = document.createElement('span');
+    impactIndicator.className = `impact-label impact-${feature.impact.toLowerCase()}`;
+    impactIndicator.textContent = feature.impact;
+    featureHeader.appendChild(impactIndicator);
+    
+    // Team indicator
+    const teamIndicator = document.createElement('span');
+    teamIndicator.className = 'team-label';
+    teamIndicator.textContent = feature.team;
+    featureHeader.appendChild(teamIndicator);
+    
+    // Date
+    const dateDisplay = document.createElement('span');
+    dateDisplay.className = 'feature-date';
+    dateDisplay.textContent = new Date(feature.date).toLocaleDateString();
+    featureHeader.appendChild(dateDisplay);
+    
+    featureItem.appendChild(featureHeader);
+    
+    // Description
+    const description = document.createElement('p');
+    description.className = 'feature-description';
+    description.textContent = feature.description;
+    
+    // Feature metadata
+    const metadata = document.createElement('div');
+    metadata.className = 'feature-metadata';
+    metadata.innerHTML = `
+      <span class="metadata-item">Bug Count: ${feature.bugCount}</span>
+      <span class="metadata-item">Time to Release: ${feature.timeToRelease} days</span>
+      <span class="metadata-item">Complexity: ${feature.complexity}</span>
+    `;
+    
+    featureItem.appendChild(description);
+    featureItem.appendChild(metadata);
+    container.appendChild(featureItem);
+  });
 }
 
 // Initialize the application when DOM is fully loaded
